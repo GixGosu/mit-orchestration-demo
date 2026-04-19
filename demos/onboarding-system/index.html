@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian Labs — Employee Onboarding</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #0066CC;
+  --secondary: #00B4D8;
+  --accent: #06D6A0;
+  --bg: #ffffff;
+  --bg-section: #f0f2f5;
+  --text: #1a1a2e;
+  --text-light: #555;
+  --shadow: 0 2px 8px rgba(0,0,0,0.1);
+  --radius: 10px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg-section);
+  color: var(--text);
+  line-height: 1.6;
+  padding-top: 60px;
+}
+
+/* ── Progress Bar (fixed top) ── */
+#progress-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: var(--bg); border-bottom: 1px solid #e0e0e0;
+  padding: 10px 24px; display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+#progress-bar .track {
+  flex: 1; height: 12px; background: #e0e0e0; border-radius: 6px; overflow: hidden;
+}
+#progress-bar .fill {
+  height: 100%; width: 0%; background: linear-gradient(90deg, var(--secondary), var(--accent));
+  border-radius: 6px; transition: width 0.4s ease;
+}
+#progress-bar .label {
+  font-weight: 700; font-size: 14px; min-width: 48px; text-align: right; color: var(--primary);
+}
+
+/* ── Sections ── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+section { background: var(--bg); border-radius: var(--radius); box-shadow: var(--shadow); margin: 24px auto; padding: 32px; max-width: 1100px; }
+section h2 { color: var(--primary); margin-bottom: 18px; font-size: 1.5rem; }
+
+/* ── Welcome ── */
+#welcome { text-align: center; padding: 48px 32px; animation: fadeIn 1s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.logo { width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary));
+  display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 36px; font-weight: 700; margin-bottom: 16px; }
+#welcome h1 { font-size: 2rem; color: var(--primary); margin-bottom: 8px; }
+#welcome .mission { font-size: 1.1rem; color: var(--text-light); max-width: 600px; margin: 0 auto 12px; }
+#welcome .warm { color: var(--text-light); max-width: 600px; margin: 0 auto; }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
+.tabs button {
+  padding: 10px 20px; border: 2px solid var(--primary); background: var(--bg); color: var(--primary);
+  border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s;
+}
+.tabs button.active, .tabs button:hover { background: var(--primary); color: #fff; }
+.day-panel { display: none; }
+.day-panel.active { display: block; }
+
+/* ── Checklist ── */
+.checklist-item {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 0;
+  border-bottom: 1px solid #eee;
+}
+.checklist-item:last-child { border-bottom: none; }
+.checklist-item input[type="checkbox"] { margin-top: 4px; width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.checklist-item .info { flex: 1; }
+.checklist-item .title { font-weight: 600; font-size: 15px; }
+.checklist-item .desc { font-size: 13px; color: var(--text-light); margin-top: 2px; }
+.checklist-item .time-badge {
+  background: var(--bg-section); color: var(--text-light); font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+}
+.checklist-item.checked .title { text-decoration: line-through; color: #999; }
+.checklist-item.checked .title::after { content: " \2713"; color: var(--accent); font-weight: 700; }
+
+/* ── Team Directory ── */
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.team-card {
+  display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: var(--radius);
+  background: var(--bg); border: 1px solid #eee; transition: transform 0.2s, box-shadow 0.2s;
+  position: relative; cursor: default;
+}
+.team-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.avatar {
+  width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; color: #fff; font-weight: 700; font-size: 18px; flex-shrink: 0;
+}
+.team-card .card-info h3 { font-size: 15px; margin-bottom: 2px; }
+.team-card .card-info .role { font-size: 13px; color: var(--text-light); }
+.team-card .card-info .slack { font-size: 12px; color: var(--secondary); }
+.team-card .tooltip {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 13px;
+  white-space: nowrap; z-index: 10; pointer-events: none;
+}
+.team-card .tooltip::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 6px solid transparent; border-top-color: #333;
+}
+.team-card:hover .tooltip { display: block; }
+
+/* ── Resources ── */
+.search-box {
+  width: 100%; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 8px;
+  font-size: 15px; margin-bottom: 20px; transition: border-color 0.2s; outline: none;
+}
+.search-box:focus { border-color: var(--primary); }
+.resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 20px; }
+@media (max-width: 768px) { .resource-grid { grid-template-columns: 1fr; } }
+.resource-category { background: var(--bg-section); border-radius: var(--radius); padding: 20px; }
+.resource-category h3 { margin-bottom: 12px; font-size: 1.1rem; }
+.resource-category .icon { font-size: 1.3rem; margin-right: 6px; }
+.resource-item { padding: 8px 0; border-bottom: 1px solid #ddd; }
+.resource-item:last-child { border-bottom: none; }
+.resource-item strong { display: block; font-size: 14px; }
+.resource-item span { font-size: 13px; color: var(--text-light); }
+.resource-item a { color: var(--primary); text-decoration: none; font-size: 13px; }
+.resource-item a:hover { text-decoration: underline; }
+.no-results { text-align: center; color: var(--text-light); padding: 20px; display: none; }
+
+/* ── FAQ ── */
+.faq-count { font-size: 13px; color: var(--text-light); margin-bottom: 12px; }
+.faq-item { border-bottom: 1px solid #eee; }
+.faq-item:last-child { border-bottom: none; }
+.faq-q {
+  padding: 16px 0; cursor: pointer; font-weight: 600; display: flex;
+  justify-content: space-between; align-items: center; font-size: 15px; user-select: none;
+}
+.faq-q::after { content: '+'; font-size: 20px; color: var(--primary); transition: transform 0.2s; }
+.faq-item.open .faq-q::after { content: '\2212'; }
+.faq-a { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; font-size: 14px; color: var(--text-light); }
+.faq-item.open .faq-a { max-height: 300px; padding-bottom: 16px; }
+.faq-empty { text-align: center; color: var(--text-light); padding: 24px; display: none; }
+
+/* ── Confetti Canvas ── */
+#confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+
+/* ── Modal ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--bg); border-radius: var(--radius); padding: 40px; text-align: center;
+  max-width: 460px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2); animation: fadeIn 0.4s ease;
+}
+.modal h2 { color: var(--accent); font-size: 1.6rem; margin-bottom: 8px; }
+.modal p { color: var(--text-light); margin-bottom: 20px; }
+.modal button {
+  background: var(--primary); color: #fff; border: none; padding: 12px 32px;
+  border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.modal button:hover { background: #0055aa; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  section { padding: 20px; margin: 16px 12px; }
+  .team-grid { grid-template-columns: 1fr; }
+  .tabs button { padding: 8px 14px; font-size: 13px; }
+  #welcome h1 { font-size: 1.5rem; }
+  .resource-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Progress Bar -->
+<div id="progress-bar">
+  <span style="font-weight:700;font-size:14px;color:var(--primary)">Onboarding</span>
+  <div class="track"><div class="fill" id="progress-fill"></div></div>
+  <span class="label" id="progress-label">0%</span>
+</div>
+
+<!-- Welcome -->
+<section id="welcome">
+  <div class="logo">ML</div>
+  <h1>Welcome to Meridian Labs!</h1>
+  <p class="mission"><em>Making AI accessible to every industry.</em></p>
+  <p class="warm">We're so excited to have you join the team. This portal is your guide through your first week — work through each day at your own pace, meet your teammates, and explore everything Meridian Labs has to offer.</p>
+</section>
+
+<!-- Day-by-Day Checklist -->
+<section>
+  <h2>Week 1 Checklist</h2>
+  <div class="tabs" id="day-tabs">
+    <button class="active" data-day="1">Day 1</button>
+    <button data-day="2">Day 2</button>
+    <button data-day="3">Day 3</button>
+    <button data-day="4">Day 4</button>
+    <button data-day="5">Day 5</button>
+  </div>
+  <div id="checklist-container"></div>
+</section>
+
+<!-- Team Directory -->
+<section>
+  <h2>Team Directory</h2>
+  <div class="team-grid" id="team-grid"></div>
+</section>
+
+<!-- Resources -->
+<section>
+  <h2>Key Resources</h2>
+  <input type="text" class="search-box" id="resource-search" placeholder="Search resources...">
+  <div class="resource-grid" id="resource-grid"></div>
+  <div class="no-results" id="resource-no-results">No matching resources found.</div>
+</section>
+
+<!-- FAQ -->
+<section>
+  <h2>Frequently Asked Questions</h2>
+  <input type="text" class="search-box" id="faq-search" placeholder="Search FAQs...">
+  <div class="faq-count" id="faq-count"></div>
+  <div id="faq-container"></div>
+  <div class="faq-empty" id="faq-empty">No matching questions found.</div>
+</section>
+
+<!-- Confetti + Modal -->
+<canvas id="confetti-canvas"></canvas>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>Congratulations!</h2>
+    <p>You're officially onboarded! You've completed every item on your Week 1 checklist. Welcome to the Meridian Labs family.</p>
+    <button onclick="document.getElementById('modal-overlay').classList.remove('show')">Let's Go!</button>
+  </div>
+</div>
+
+<script>
+// ── DATA ──
+const DAYS = {
+  1: { title: "Day 1 — Welcome & Setup", items: [
+    { id:"d1-1", title:"Laptop configuration", desc:"Pick up your laptop (Mac or Linux, your choice) from IT on the 2nd floor. Casey Morgan will walk you through initial setup.", time:"45 min" },
+    { id:"d1-2", title:"Account provisioning", desc:"Set up your Slack, email (@meridian.dev), GitHub (meridian-labs org), and Figma accounts. IT will send credentials to your personal email.", time:"30 min" },
+    { id:"d1-3", title:"VPN & 2FA setup", desc:"Install the VPN client (vpn.meridian.dev) and enroll in 2FA using 1Password. Follow the step-by-step guide IT provides.", time:"20 min" },
+    { id:"d1-4", title:"Badge photo", desc:"Visit the front desk to take your badge photo. Your badge grants access to the building, garage B, and secure areas.", time:"10 min" },
+    { id:"d1-5", title:"Meet your manager (1:1)", desc:"A 30-minute introductory 1:1 with your direct manager. Expect to discuss team goals, your first-week plan, and any initial questions.", time:"30 min" },
+    { id:"d1-6", title:"Office tour with buddy", desc:"Your assigned onboarding buddy will show you around: kitchen, restrooms, quiet rooms, phone booths, and the best coffee spots.", time:"30 min" },
+  ]},
+  2: { title: "Day 2 — Engineering Onboarding", items: [
+    { id:"d2-1", title:"Clone repos", desc:"Clone the core repositories from github.com/meridian-labs. Your manager will tell you which repos are relevant to your team.", time:"20 min" },
+    { id:"d2-2", title:"Dev environment setup", desc:"Follow the dev environment setup doc (docs.meridian.dev/setup) to install dependencies, configure your editor, and run the app locally.", time:"60 min" },
+    { id:"d2-3", title:"CI/CD overview", desc:"Review the CI/CD pipeline overview. We use GitHub Actions for builds, tests, and deployments. The CI/CD dashboard shows all pipeline statuses.", time:"30 min" },
+    { id:"d2-4", title:"Coding standards walkthrough", desc:"Read through our coding standards doc and PR review guidelines. Your buddy can answer questions about conventions.", time:"30 min" },
+    { id:"d2-5", title:"Security training", desc:"Complete the mandatory 30-minute security training module. Covers phishing awareness, data handling, and incident reporting.", time:"30 min" },
+  ]},
+  3: { title: "Day 3 — Product Deep-Dive", items: [
+    { id:"d3-1", title:"Live product demo", desc:"Chris Nguyen (PM) walks you through the product end-to-end, showing core workflows and recent features.", time:"60 min" },
+    { id:"d3-2", title:"Roadmap walkthrough", desc:"Review the product roadmap for the current and next quarter. Understand priorities and where your team fits in.", time:"30 min" },
+    { id:"d3-3", title:"Customer personas review", desc:"Study the 3 primary customer personas (Enterprise Admin, Data Analyst, Developer) to understand who we build for.", time:"30 min" },
+    { id:"d3-4", title:"Team lunch", desc:"Join your team for lunch at noon. A chance to connect informally and get to know your colleagues.", time:"60 min" },
+  ]},
+  4: { title: "Day 4 — Hands-On", items: [
+    { id:"d4-1", title:"First ticket assignment", desc:"Your manager assigns your first ticket — a starter bug or small feature to get you familiar with the codebase.", time:"15 min" },
+    { id:"d4-2", title:"Pair programming session", desc:"Pair with a teammate for 2 hours to work on your ticket or explore the codebase together.", time:"120 min" },
+    { id:"d4-3", title:"Skip-level 1:1", desc:"A 30-minute meeting with your manager's manager. Casual intro — they want to hear about your experience so far.", time:"30 min" },
+  ]},
+  5: { title: "Day 5 — Wrap-Up & Reflect", items: [
+    { id:"d5-1", title:"Attend all-hands", desc:"Join the company all-hands meeting (Friday at 2 PM). Hear updates from leadership and celebrate recent wins.", time:"60 min" },
+    { id:"d5-2", title:"Write intro post", desc:"Write a short introduction about yourself in #introductions on Slack. Share your role, background, and a fun fact.", time:"15 min" },
+    { id:"d5-3", title:"First-week retro with manager", desc:"A 30-minute retrospective with your manager. What went well? What was confusing? What do you need for Week 2?", time:"30 min" },
+  ]}
+};
+
+const TEAM = [
+  { name:"Alex Rivera", role:"CTO", ask:"Technical vision, architecture decisions", slack:"@alex.r" },
+  { name:"Jordan Kim", role:"VP Engineering", ask:"Team structure, career growth", slack:"@jordan.k" },
+  { name:"Sam Patel", role:"Engineering Manager", ask:"Sprint process, your first project", slack:"@sam.p" },
+  { name:"Maria Santos", role:"Senior Backend Engineer", ask:"API design, database patterns", slack:"@maria.s" },
+  { name:"Tyler Brooks", role:"Senior Frontend Engineer", ask:"React architecture, design system", slack:"@tyler.b" },
+  { name:"Aisha Okonkwo", role:"Staff ML Engineer", ask:"Model training, data pipelines", slack:"@aisha.o" },
+  { name:"Chris Nguyen", role:"Product Manager", ask:"Roadmap, feature prioritization", slack:"@chris.n" },
+  { name:"Dana Larson", role:"Head of Design", ask:"Design system, user research", slack:"@dana.l" },
+  { name:"Robin Hayes", role:"HR Business Partner", ask:"Benefits, PTO, onboarding", slack:"@robin.h" },
+  { name:"Casey Morgan", role:"IT Support Lead", ask:"Laptop issues, access requests", slack:"@casey.m" },
+];
+
+const RESOURCES = [
+  { cat:"IT & Access", icon:"\uD83D\uDD27", items:[
+    { name:"VPN Setup", desc:"Connect to the corporate network remotely", link:"vpn.meridian.dev" },
+    { name:"1Password Team Vault", desc:"Shared credentials and secure notes for your team", link:null },
+    { name:"2FA Enrollment Guide", desc:"Step-by-step instructions to set up two-factor authentication via 1Password", link:null },
+    { name:"Laptop Policy", desc:"Mac or Linux, your choice. Provisioned by IT on your first day", link:null },
+    { name:"Wifi Password Process", desc:'Corporate: "meridian-corp" (AD credentials); Guest: "meridian-guest" (no password)', link:null },
+  ]},
+  { cat:"Engineering", icon:"\uD83D\uDCBB", items:[
+    { name:"GitHub Organization", desc:"All source code repositories", link:"github.com/meridian-labs" },
+    { name:"Engineering Docs", desc:"Setup guides, architecture docs, runbooks", link:"docs.meridian.dev" },
+    { name:"Staging Environment", desc:"Test your changes before production", link:"staging.meridian.dev" },
+    { name:"CI/CD Dashboard", desc:"View build and deployment status for all pipelines (GitHub Actions)", link:null },
+    { name:"PR Review Guidelines", desc:"Standards for code review: response time, approval requirements, style", link:null },
+  ]},
+  { cat:"HR & Benefits", icon:"\uD83D\uDC65", items:[
+    { name:"PTO", desc:"Unlimited PTO with a 15-day minimum encouraged. No accrual, no cap.", link:null },
+    { name:"Health Insurance", desc:"Health, dental, and vision. Enroll within 30 days of your start date.", link:null },
+    { name:"401k", desc:"4% company match with immediate vesting.", link:null },
+    { name:"Equity", desc:"4-year vesting schedule, 1-year cliff.", link:null },
+    { name:"Learning Budget", desc:"$2,000/year for books, courses, and conferences. Manager approval required.", link:null },
+  ]},
+  { cat:"Culture", icon:"\uD83C\uDFAF", items:[
+    { name:"Slack Channels", desc:"#general, #random, #shipped, #til, #pets, #food, #fitness", link:null },
+    { name:"ERGs", desc:"Women in Tech, LGBTQ+, Parents, BIPOC", link:null },
+    { name:"Monthly Game Night", desc:"First Thursday of every month. Board games, video games, and snacks.", link:null },
+    { name:"Quarterly Offsite", desc:"Team-building offsite once per quarter. Past trips: hiking, escape rooms, cooking classes.", link:null },
+  ]},
+];
+
+const FAQS = [
+  { q:"Where do I park?", a:"Park in Garage B. Your badge grants access to the garage. If your badge doesn't work on Day 1, ask security at the front desk for a temporary pass." },
+  { q:"Is there a dress code?", a:"No formal dress code \u2014 we're casual. Wear whatever makes you comfortable. No policy, no judgment." },
+  { q:"What's the remote work policy?", a:"We follow a hybrid model: 3 days in-office (Tuesday, Wednesday, Thursday) and flexible on Monday and Friday. You can work from home on flex days or come in \u2014 your call." },
+  { q:"How do I submit expense reports?", a:"Use Expensify. Expenses under $100 are auto-approved. Expenses over $100 require manager approval. Submit within 30 days of the expense." },
+  { q:"How does the learning budget work?", a:"You get $2,000/year for professional development \u2014 books, online courses, conferences, workshops. Just get your manager's OK before purchasing. No formal approval form needed." },
+  { q:"When can I get a laptop refresh?", a:"Every 3 years. If your laptop has issues before then, contact Casey Morgan (@casey.m) in IT for repairs or a loaner." },
+  { q:"Is there relocation support?", a:"Yes \u2014 ask Robin Hayes (@robin.h) in HR for details. Packages vary by role and location." },
+  { q:"What's the referral bonus?", a:"$5,000 for each successful referral hire. Paid after the new hire completes 90 days. Submit referrals through the careers portal." },
+  { q:"When are performance reviews?", a:"Biannual: March and September. Your manager will share a self-review form 2 weeks before the review period." },
+  { q:"How does the promotion process work?", a:"Promotions are reviewed during performance cycles (March and September). Your manager nominates you based on sustained impact at the next level. Calibration happens at the department level." },
+  { q:"When do I join the on-call rotation?", a:"After 3 months. Your manager will onboard you to the on-call process, PagerDuty setup, and escalation procedures before your first shift." },
+  { q:"Are there meeting-free days?", a:"Meeting-free Fridays are encouraged (not mandatory). Try to keep Fridays clear for deep work, learning, or wrapping up the week." },
+  { q:"What are the lunch options?", a:"There's a cafeteria on the ground floor (subsidized, open 11:30\u20131:30). Food trucks visit on Tuesdays and Thursdays in the parking lot." },
+  { q:"How do I connect to guest wifi?", a:'Network name: "meridian-guest" \u2014 no password required. Use it for personal devices.' },
+  { q:"Can I get company merch shipped to me?", a:"Yes! Post in #swag on Slack with your size and shipping address. The People team sends a welcome kit to all new hires." },
+  { q:"What mental health resources are available?", a:"Free Headspace subscription for all employees plus 6 EAP (Employee Assistance Program) sessions per year, fully covered. Contact HR for enrollment details." },
+  { q:"Are there commuter benefits?", a:"Yes \u2014 $150/month pre-tax commuter benefit for transit or parking. Enroll through the benefits portal." },
+  { q:"Is there a sabbatical program?", a:"Yes \u2014 4 weeks paid sabbatical after 5 years of continuous employment. Coordinate timing with your manager and HR at least 3 months in advance." },
+];
+
+// ── RENDER FUNCTIONS ──
+
+// Checklist
+const checklistContainer = document.getElementById('checklist-container');
+const saved = JSON.parse(localStorage.getItem('onboarding-checks') || '{}');
+
+function getTotalItems() {
+  let n = 0;
+  for (const d in DAYS) n += DAYS[d].items.length;
+  return n;
+}
+const TOTAL_ITEMS = getTotalItems();
+
+function renderDay(day) {
+  const data = DAYS[day];
+  let html = '<h3 style="margin-bottom:14px;color:var(--text)">' + data.title + '</h3>';
+  data.items.forEach(item => {
+    const checked = saved[item.id] ? 'checked' : '';
+    const cls = saved[item.id] ? 'checklist-item checked' : 'checklist-item';
+    html += '<div class="' + cls + '" data-id="' + item.id + '">' +
+      '<input type="checkbox" ' + checked + ' aria-label="' + item.title + '">' +
+      '<div class="info"><div class="title">' + item.title + '</div><div class="desc">' + item.desc + '</div></div>' +
+      '<span class="time-badge">' + item.time + '</span></div>';
+  });
+  checklistContainer.innerHTML = html;
+
+  checklistContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const id = this.closest('.checklist-item').dataset.id;
+      saved[id] = this.checked;
+      localStorage.setItem('onboarding-checks', JSON.stringify(saved));
+      this.closest('.checklist-item').classList.toggle('checked', this.checked);
+      updateProgress();
+    });
+  });
+}
+
+// Tabs
+let activeDay = 1;
+document.getElementById('day-tabs').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#day-tabs button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  activeDay = parseInt(e.target.dataset.day);
+  renderDay(activeDay);
+});
+renderDay(1);
+
+// Progress
+function updateProgress() {
+  let checked = 0;
+  for (const k in saved) if (saved[k]) checked++;
+  const pct = Math.round((checked / TOTAL_ITEMS) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = pct + '%';
+  if (pct === 100) celebrate();
+}
+updateProgress();
+
+// Team Directory
+const teamGrid = document.getElementById('team-grid');
+const COLORS = ['#0066CC','#00B4D8','#06D6A0','#E63946','#F4A261','#7209B7','#3A86FF','#FF006E','#8338EC','#FB5607'];
+function getInitials(name) { return name.split(' ').map(w => w[0]).join(''); }
+TEAM.forEach((p, i) => {
+  const card = document.createElement('div');
+  card.className = 'team-card';
+  card.innerHTML = '<div class="avatar" style="background:' + COLORS[i % COLORS.length] + '">' + getInitials(p.name) + '</div>' +
+    '<div class="card-info"><h3>' + p.name + '</h3><div class="role">' + p.role + '</div><div class="slack">' + p.slack + '</div></div>' +
+    '<div class="tooltip">Ask me about: ' + p.ask + '</div>';
+  teamGrid.appendChild(card);
+});
+
+// Resources
+const resourceGrid = document.getElementById('resource-grid');
+function renderResources(filter) {
+  resourceGrid.innerHTML = '';
+  let anyVisible = false;
+  RESOURCES.forEach(cat => {
+    const filtered = cat.items.filter(it =>
+      !filter || it.name.toLowerCase().includes(filter) || it.desc.toLowerCase().includes(filter) || cat.cat.toLowerCase().includes(filter)
+    );
+    if (filtered.length === 0) return;
+    anyVisible = true;
+    const div = document.createElement('div');
+    div.className = 'resource-category';
+    let html = '<h3><span class="icon">' + cat.icon + '</span> ' + cat.cat + '</h3>';
+    filtered.forEach(it => {
+      html += '<div class="resource-item"><strong>' + it.name + '</strong><span>' + it.desc + '</span>';
+      if (it.link) html += ' <a href="https://' + it.link + '" target="_blank">' + it.link + '</a>';
+      html += '</div>';
+    });
+    div.innerHTML = html;
+    resourceGrid.appendChild(div);
+  });
+  document.getElementById('resource-no-results').style.display = anyVisible ? 'none' : 'block';
+}
+renderResources('');
+document.getElementById('resource-search').addEventListener('input', e => {
+  renderResources(e.target.value.toLowerCase().trim());
+});
+
+// FAQ
+const faqContainer = document.getElementById('faq-container');
+const faqCount = document.getElementById('faq-count');
+const faqEmpty = document.getElementById('faq-empty');
+
+function renderFAQs(filter) {
+  faqContainer.innerHTML = '';
+  let count = 0;
+  FAQS.forEach((f, i) => {
+    if (filter && !f.q.toLowerCase().includes(filter) && !f.a.toLowerCase().includes(filter)) return;
+    count++;
+    const div = document.createElement('div');
+    div.className = 'faq-item';
+    div.innerHTML = '<div class="faq-q">' + f.q + '</div><div class="faq-a">' + f.a + '</div>';
+    div.querySelector('.faq-q').addEventListener('click', () => div.classList.toggle('open'));
+    faqContainer.appendChild(div);
+  });
+  faqCount.textContent = count + ' of ' + FAQS.length + ' questions';
+  faqEmpty.style.display = count === 0 ? 'block' : 'none';
+}
+renderFAQs('');
+document.getElementById('faq-search').addEventListener('input', e => {
+  renderFAQs(e.target.value.toLowerCase().trim());
+});
+
+// ── CONFETTI + CELEBRATION ──
+let celebrated = false;
+function celebrate() {
+  if (celebrated) return;
+  celebrated = true;
+  document.getElementById('modal-overlay').classList.add('show');
+
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const pieces = [];
+  const colors = ['#0066CC','#00B4D8','#06D6A0','#E63946','#F4A261','#FF006E','#8338EC','#FB5607'];
+  for (let i = 0; i < 200; i++) {
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      w: Math.random() * 10 + 5,
+      h: Math.random() * 6 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: Math.random() * 3 + 2,
+      vx: (Math.random() - 0.5) * 2,
+      rot: Math.random() * 360,
+      rv: (Math.random() - 0.5) * 8,
+    });
+  }
+
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rv;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    frame++;
+    if (frame < 180) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+// Check on load if already at 100%
+(function() {
+  let checked = 0;
+  for (const k in saved) if (saved[k]) checked++;
+  if (checked === TOTAL_ITEMS && TOTAL_ITEMS > 0) celebrate();
+})();
+</script>
+</body>
+</html>

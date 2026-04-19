@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Workshop Pt 2 — MIT GenAI Global</title>
+<meta property="og:title" content="OpenClaw Workshop Pt 2">
+<meta property="og:description" content="Building Products Live with Agent Teams · MIT GenAI Global · Sunday, April 19, 2026">
+<meta property="og:image" content="https://cyberarctica.com/mit-genai-2026/images/banner-preview.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="OpenClaw Workshop Pt 2">
+<meta name="twitter:description" content="Building Products Live with Agent Teams · MIT GenAI Global">
+<meta name="twitter:image" content="https://cyberarctica.com/mit-genai-2026/images/banner-preview.png">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --card: #1a2332;
+    --border: #2a3a4e;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --green: #34d399;
+    --orange: #fb923c;
+    --red: #f87171;
+    --pink: #f472b6;
+  }
+
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    padding: 60px 80px;
+    position: relative;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .slide.active { display: flex; }
+  .slide.has-bg { background-size: cover; background-position: center; }
+  .slide.has-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 14, 23, 0.75);
+    z-index: 0;
+  }
+  .slide.has-bg > * { position: relative; z-index: 1; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .title-slide h1 {
+    font-size: 3.5em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-align: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent2), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 24px;
+  }
+
+  .title-slide .subtitle {
+    font-size: 1.4em;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .title-slide .meta {
+    font-size: 1.1em;
+    color: var(--muted);
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  .content-slide {
+    align-items: flex-start;
+    padding: 60px 100px;
+  }
+
+  .content-slide h2 {
+    font-size: 2.2em;
+    font-weight: 700;
+    margin-bottom: 40px;
+    letter-spacing: -0.01em;
+  }
+
+  .content-slide h2 .accent { color: var(--accent); }
+  .content-slide h2 .green { color: var(--green); }
+  .content-slide h2 .orange { color: var(--orange); }
+  .content-slide h2 .red { color: var(--red); }
+  .content-slide h2 .pink { color: var(--pink); }
+
+  .bullets {
+    list-style: none;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .bullets li {
+    font-size: 1.35em;
+    line-height: 1.5;
+    padding: 12px 0;
+    padding-left: 32px;
+    position: relative;
+    color: var(--text);
+  }
+
+  .bullets li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .bullets li .dim { color: var(--muted); font-size: 0.85em; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .col h3 {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .col h3.green-border { border-color: var(--green); color: var(--green); }
+  .col h3.red-border { border-color: var(--red); color: var(--red); }
+  .col h3.accent-border { border-color: var(--accent); color: var(--accent); }
+  .col h3.orange-border { border-color: var(--orange); color: var(--orange); }
+
+  .col ul { list-style: none; }
+  .col ul li {
+    font-size: 1.1em;
+    line-height: 1.6;
+    padding: 6px 0;
+    color: var(--text);
+  }
+  .col ul li::before { content: '•'; margin-right: 10px; color: var(--muted); }
+
+  .compare-table {
+    width: 100%;
+    max-width: 1000px;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  .compare-table th {
+    text-align: left;
+    padding: 14px 20px;
+    font-size: 1em;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+  }
+
+  .compare-table td {
+    padding: 14px 20px;
+    font-size: 1.05em;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .badge-green { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+  .badge-orange { background: rgba(251, 146, 60, 0.15); color: var(--orange); }
+  .badge-red { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+
+  .big-quote {
+    font-size: 2em;
+    font-weight: 600;
+    text-align: center;
+    max-width: 800px;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .big-quote .highlight {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .arch-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    margin: 8px 0;
+    width: 100%;
+    max-width: 700px;
+  }
+
+  .arch-box .label {
+    font-size: 0.85em;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  .arch-box .value { font-size: 1.3em; font-weight: 600; }
+  .arch-arrow { font-size: 1.5em; color: var(--accent); margin: 4px 0; }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .demo-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .demo-card:hover { transform: translateY(-4px); border-color: var(--accent); }
+  .demo-card .emoji { font-size: 2.5em; margin-bottom: 16px; }
+  .demo-card h3 { font-size: 1.2em; margin-bottom: 8px; }
+  .demo-card p { color: var(--muted); font-size: 0.95em; line-height: 1.5; }
+
+  .stats-row {
+    display: flex;
+    gap: 40px;
+    margin-top: 20px;
+  }
+
+  .stat { text-align: center; }
+  .stat .number {
+    font-size: 3em;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .stat .label { font-size: 1em; color: var(--muted); margin-top: 4px; }
+
+  .callout {
+    margin-top: 30px;
+    padding: 20px 28px;
+    background: var(--card);
+    border-radius: 0 8px 8px 0;
+    max-width: 900px;
+    width: 100%;
+  }
+  .callout.orange { border-left: 3px solid var(--orange); }
+  .callout.accent { border-left: 3px solid var(--accent); }
+  .callout.green { border-left: 3px solid var(--green); }
+  .callout.red { border-left: 3px solid var(--red); }
+
+  .callout .callout-title { font-size: 1.15em; color: var(--text); }
+  .callout .callout-body { font-size: 1.15em; margin-top: 8px; font-weight: 600; }
+
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 12px 0;
+    width: 100%;
+    max-width: 1000px;
+  }
+
+  .flow-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 24px;
+    flex: 1;
+    text-align: center;
+  }
+
+  .flow-box .flow-label {
+    font-size: 0.8em;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .flow-box .flow-value { font-size: 1.15em; font-weight: 600; margin-top: 4px; }
+  .flow-arrow { color: var(--accent); font-size: 1.3em; flex-shrink: 0; }
+
+  .old-way { text-decoration: line-through; color: var(--muted); opacity: 0.6; }
+
+  .nav {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .nav button:hover { background: var(--border); }
+  .slide-counter { font-size: 0.9em; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ===== 1. TITLE ===== -->
+<div class="slide title-slide active" data-slide="1" style="background: #ffffff;">
+  <img src="banner-logo.png" alt="OpenClaw" style="width: 140px; height: 140px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(124,58,237,0.15)); margin-bottom: 28px;">
+  <h1 style="font-size: 52px; font-weight: 800; letter-spacing: -1.5px; color: #1e1b4b; line-height: 1.1; background: none; -webkit-text-fill-color: #1e1b4b;">Open<span style="background: linear-gradient(135deg, #7c3aed, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Claw</span> Workshop Pt 2</h1>
+  <div class="subtitle" style="font-size: 22px; font-weight: 500; color: #64748b; letter-spacing: -0.3px;">Building Products Live with Agent Teams</div>
+  <div style="width: 60px; height: 3px; background: linear-gradient(90deg, #7c3aed, #a855f7); border-radius: 2px; margin: 10px 0;"></div>
+  <div class="meta" style="font-size: 17px; font-weight: 600; color: #94a3b8; letter-spacing: 2px; text-transform: uppercase;">MIT GenAI Global &middot; Sunday, April 19, 2026</div>
+</div>
+
+<!-- ===== 2. AGENT SPECTRUM ===== -->
+<div class="slide content-slide has-bg" data-slide="2" style="background-image: url('images/02-agent-spectrum.png');">
+  <h2>The <span class="accent">Agent Spectrum</span></h2>
+  <table class="compare-table">
+    <tr><th>Level</th><th>What It Does</th><th>Where Most Orgs Are</th></tr>
+    <tr><td>Chatbot</td><td>Answers questions from a script</td><td><span class="badge badge-green">✓ Here</span></td></tr>
+    <tr><td>Copilot</td><td>Suggests, drafts, assists a human</td><td><span class="badge badge-green">✓ Getting here</span></td></tr>
+    <tr><td>Autonomous Agent</td><td>Completes tasks independently</td><td><span class="badge badge-orange">⚡ Experimenting</span></td></tr>
+    <tr><td>Agent Teams</td><td>Multiple agents coordinate on complex work</td><td><span class="badge badge-red">✗ Almost nobody</span></td></tr>
+  </table>
+</div>
+
+<!-- ===== 3. PERSONAL AI TRAJECTORY ===== -->
+<div class="slide content-slide has-bg" data-slide="3" style="background-image: url('images/02-agent-spectrum.png');">
+  <h2>The Personal AI <span class="accent">Trajectory</span></h2>
+  <div style="display: flex; align-items: center; gap: 0; margin: 20px 0;">
+    <div style="flex: 1; align-self: center; background: rgba(52,211,153,0.1); border: 1px solid var(--green); border-radius: 10px 0 0 10px; padding: 14px; text-align: center;">
+      <div style="font-size: 1.4em; margin-bottom: 6px;">💬</div>
+      <div style="color: var(--green); font-weight: 700; font-size: 0.95em;">Yesterday</div>
+      <div style="color: var(--dim); font-size: 0.8em; margin-top: 5px;">Chat in a browser tab.<br>You go to it.<br>Stateless. Forgets everything.</div>
+    </div>
+    <div style="flex: 1; align-self: center; background: rgba(56,189,248,0.15); border: 1px solid var(--accent); padding: 18px; text-align: center;">
+      <div style="font-size: 1.6em; margin-bottom: 6px;">📱</div>
+      <div style="color: var(--accent); font-weight: 700; font-size: 1em;">Now</div>
+      <div style="color: var(--dim); font-size: 0.85em; margin-top: 5px;">Always-on in your pocket.<br>Persistent memory.<br>Knows your context across channels.</div>
+    </div>
+    <div style="flex: 1.2; align-self: center; background: rgba(248,113,113,0.1); border: 1px solid var(--red); padding: 22px; text-align: center;">
+      <div style="font-size: 1.8em; margin-bottom: 6px;">🧠</div>
+      <div style="color: var(--red); font-weight: 700; font-size: 1.1em;">Next</div>
+      <div style="color: var(--dim); font-size: 0.9em; margin-top: 5px;">Anticipates before you ask.<br>Manages routines autonomously.<br>Acts on your behalf.<br>Proactive, not reactive.</div>
+    </div>
+    <div style="flex: 1.4; align-self: center; background: rgba(244,114,182,0.1); border: 1px solid #f472b6; border-radius: 0 10px 10px 0; padding: 26px; text-align: center;">
+      <div style="font-size: 2em; margin-bottom: 6px;">🌐</div>
+      <div style="color: #f472b6; font-weight: 700; font-size: 1.15em;">Endgame</div>
+      <div style="color: var(--dim); font-size: 0.9em; margin-top: 5px;">Manages your entire digital life.<br><span style="color: var(--green);">Star Trek:</span> amplifies you.<br><span style="color: var(--red);">Wall-E:</span> replaces you.<br>Same technology. Different design choices.</div>
+    </div>
+  </div>
+  <div class="callout accent" style="margin-top: 10px;">
+    <div class="callout-body" style="color: var(--accent);">Now that AI can think — do we let it do all our thinking, or use it like they do at Starfleet Academy to amplify our learning and impact?</div>
+  </div>
+</div>
+
+<!-- ===== 4. LET'S BUILD (KICK OFF EARLY) ===== -->
+<div class="slide has-bg" data-slide="4" style="background-image: url('images/06-live-demo.png');">
+  <h2 style="font-size: 2.5em; font-weight: 700; margin-bottom: 40px;">Let's <span style="color: var(--accent);">Build</span></h2>
+  <div class="demo-grid">
+    <div class="demo-card">
+      <div class="emoji">☄️</div>
+      <h3>NASA NEO Dashboard</h3>
+      <p>Live asteroid data from NASA API. Interactive charts. <strong>Deterministic output.</strong></p>
+    </div>
+    <div class="demo-card">
+      <div class="emoji">👋</div>
+      <h3>Onboarding System</h3>
+      <p>Portal + live Mattermost channel. New hire Q&A agent.</p>
+    </div>
+    <div class="demo-card">
+      <div class="emoji">🔥</div>
+      <h3>Incident Postmortem</h3>
+      <p>Structured report + incident channel. Ask about the outage.</p>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat"><div class="number">14</div><div class="label">Agents</div></div>
+    <div class="stat"><div class="number">3</div><div class="label">Products</div></div>
+    <div class="stat"><div class="number">0</div><div class="label">Lines Written by Humans</div></div>
+  </div>
+</div>
+
+<!-- ===== 4. ENGINEER NOT ENGINE ===== -->
+<div class="slide has-bg" data-slide="5" style="background-image: url('images/03-engineer-not-engine.png');">
+  <div class="big-quote">
+    The AI is the <span class="highlight">engineer</span>,<br>not the engine.
+  </div>
+  <div style="margin-top: 40px; color: var(--muted); font-size: 1.1em; text-align: center; max-width: 600px;">
+    Build deterministic systems with nondeterministic tools.
+  </div>
+</div>
+
+<!-- ===== 5. DETERMINISTIC vs NONDETERMINISTIC ===== -->
+<div class="slide content-slide has-bg" data-slide="6" style="background-image: url('images/04-deterministic.png');">
+  <h2><span class="green">Deterministic</span> vs <span class="orange">Nondeterministic</span></h2>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="green-border">AI Builds the System</h3>
+      <ul>
+        <li>Code calls real APIs</li>
+        <li>Same input, same output. Every time.</li>
+        <li>You can audit it. You can test it.</li>
+        <li><strong>Example:</strong> NASA asteroid dashboard</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3 class="orange-border">AI Runs the System</h3>
+      <ul>
+        <li>LLM answers questions at runtime</li>
+        <li>Different answer each time</li>
+        <li>Harder to audit. Harder to trust.</li>
+        <li><strong>Example:</strong> Q&A channel from docs</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 6. AGENT TEAM PATTERN ===== -->
+<div class="slide has-bg" data-slide="7" style="background-image: url('images/05-agent-team.png');">
+  <h2 style="font-size: 2.2em; font-weight: 700; margin-bottom: 24px;">The <span style="color: var(--accent);">Agent Team</span> Patterns</h2>
+  <svg viewBox="0 0 900 460" style="width: 100%; max-width: 900px;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arrowRed" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 Z" fill="#f87171"/>
+      </marker>
+      <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 Z" fill="#fb923c"/>
+      </marker>
+      <marker id="arrowPink" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M 0 0 L 8 4 L 0 8 Z" fill="#f472b6"/>
+      </marker>
+    </defs>
+
+    <!-- ====== ORCHESTRATOR ====== -->
+    <rect x="340" y="10" width="220" height="50" rx="10" fill="#1a2332" stroke="#38bdf8" stroke-width="2"/>
+    <text x="450" y="42" text-anchor="middle" fill="#38bdf8" font-size="16" font-weight="600" font-family="system-ui">ORCHESTRATOR</text>
+    
+    <!-- Spawn arrows -->
+    <text x="450" y="78" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="system-ui">spawns in parallel</text>
+    <line x1="390" y1="60" x2="150" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="450" y1="60" x2="450" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="510" y1="60" x2="750" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    
+    <!-- ====== PARALLEL BUILDERS ====== -->
+    <rect x="50" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="150" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">AGENT A</text>
+    
+    <rect x="350" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="450" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">AGENT B</text>
+    
+    <rect x="650" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="750" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">AGENT C</text>
+
+    <!-- Down to approval gate -->
+    <line x1="150" y1="150" x2="150" y2="190" stroke="#818cf8" stroke-width="1.5"/>
+    <line x1="450" y1="150" x2="450" y2="190" stroke="#818cf8" stroke-width="1.5"/>
+    <line x1="750" y1="150" x2="750" y2="190" stroke="#818cf8" stroke-width="1.5"/>
+    
+    <!-- ====== APPROVAL GATE ====== -->
+    <rect x="100" y="190" width="700" height="44" rx="8" fill="#1a2332" stroke="#fb923c" stroke-width="2" stroke-dasharray="8,4"/>
+    <text x="450" y="218" text-anchor="middle" fill="#fb923c" font-size="14" font-weight="600" font-family="system-ui">⚡ APPROVAL GATE</text>
+
+    <!-- LOOP 2: Orange loop — Approval Gate rejects, sends back to builders (right side) -->
+    <path d="M 800 212 C 880 212, 880 125, 850 125" fill="none" stroke="#fb923c" stroke-width="2" marker-end="url(#arrowOrange)"/>
+    <text x="892" y="175" fill="#fb923c" font-size="10" font-weight="600" font-family="system-ui" transform="rotate(90, 892, 175)">WRONG APPROACH</text>
+
+    <!-- Down to verifier -->
+    <line x1="450" y1="234" x2="450" y2="270" stroke="#94a3b8" stroke-width="1.5"/>
+    <polygon points="445,268 455,268 450,276" fill="#94a3b8"/>
+
+    <!-- ====== VERIFIER ====== -->
+    <rect x="300" y="278" width="300" height="50" rx="10" fill="#1a2332" stroke="#34d399" stroke-width="2"/>
+    <text x="450" y="308" text-anchor="middle" fill="#34d399" font-size="16" font-weight="600" font-family="system-ui">VERIFIER (fresh eyes)</text>
+
+    <!-- LOOP 1: Red loop — Verifier rejects, sends back to builder (left side) -->
+    <path d="M 300 303 C 20 303, 20 125, 50 125" fill="none" stroke="#f87171" stroke-width="2" marker-end="url(#arrowRed)"/>
+    <text x="10" y="220" fill="#f87171" font-size="10" font-weight="600" font-family="system-ui" transform="rotate(-90, 10, 220)">FIX BUGS</text>
+
+    <!-- Pass arrow down -->
+    <line x1="450" y1="328" x2="450" y2="360" stroke="#34d399" stroke-width="1.5"/>
+    <polygon points="445,358 455,358 450,366" fill="#34d399"/>
+
+    <!-- ====== HUMAN GATE ====== -->
+    <rect x="280" y="368" width="340" height="44" rx="8" fill="#1a2332" stroke="#f472b6" stroke-width="2"/>
+    <text x="450" y="396" text-anchor="middle" fill="#f472b6" font-size="14" font-weight="600" font-family="system-ui">👤 HUMAN GATE</text>
+
+    <!-- LOOP 3: Pink loop — Human sends back to verifier (right side, short) -->
+    <path d="M 620 380 C 700 370, 700 300, 600 303" fill="none" stroke="#f472b6" stroke-width="2" marker-end="url(#arrowPink)"/>
+    <text x="680" y="340" fill="#f472b6" font-size="10" font-weight="600" font-family="system-ui">CHANGE REQUEST</text>
+
+    <!-- Final output arrow -->
+    <line x1="450" y1="412" x2="450" y2="440" stroke="#34d399" stroke-width="2"/>
+    <polygon points="443,438 457,438 450,448" fill="#34d399"/>
+    <text x="450" y="458" text-anchor="middle" fill="#34d399" font-size="13" font-weight="700" font-family="system-ui">✓ SHIP</text>
+
+    <!-- ====== LEGEND ====== -->
+    <line x1="50" y1="380" x2="62" y2="380" stroke="#f87171" stroke-width="2"/>
+    <text x="68" y="384" fill="#94a3b8" font-size="10" font-family="system-ui">Verifier → Builder (fix bugs)</text>
+
+    <line x1="50" y1="398" x2="62" y2="398" stroke="#fb923c" stroke-width="2"/>
+    <text x="68" y="402" fill="#94a3b8" font-size="10" font-family="system-ui">Gate → Builder (wrong approach, redo)</text>
+
+    <line x1="50" y1="416" x2="62" y2="416" stroke="#f472b6" stroke-width="2"/>
+    <text x="68" y="420" fill="#94a3b8" font-size="10" font-family="system-ui">Human → Verifier (change request)</text>
+
+    <line x1="50" y1="434" x2="62" y2="434" stroke="#34d399" stroke-width="2"/>
+    <text x="68" y="438" fill="#94a3b8" font-size="10" font-family="system-ui">Pass (move forward)</text>
+  </svg>
+</div>
+
+<!-- ===== 7. ARCHITECTURE ===== -->
+<div class="slide has-bg" data-slide="8" style="background-image: url('images/05-architecture.png');">
+  <h2 style="font-size: 2.2em; font-weight: 700; margin-bottom: 30px;">How It <span style="color: var(--accent);">Works</span></h2>
+  <div class="arch-box">
+    <div class="label">Layer 1 — Personal AI Layer</div>
+    <div class="value">OpenClaw <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">messaging, memory, tools, channels</span></div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-box">
+    <div class="label">Layer 2 — Coding Orchestration</div>
+    <div class="value">Claude Code <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">parallel sub-agents, file I/O, verification</span></div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-box">
+    <div class="label">Layer 3 — Complex Orchestration</div>
+    <div class="value">n8n / Custom Engines <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">DAGs, governance, retry logic</span></div>
+  </div>
+
+</div>
+
+<!-- ===== 8. SPEC-DRIVEN: THE TENSION ===== -->
+<div class="slide content-slide has-bg" data-slide="9" style="background-image: url('images/09-spec-driven.png');">
+  <h2><span class="orange">Spec-Driven</span> Development</h2>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="accent-border">The Promise</h3>
+      <ul>
+        <li>Write the perfect spec upfront</li>
+        <li>Agents execute flawlessly</li>
+        <li>Reproducible — same prompt, same result</li>
+        <li>Scalable — run it 1,000 times</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3 class="red-border">The Reality</h3>
+      <ul>
+        <li>You can't spec what you haven't built</li>
+        <li>Building reveals what the spec missed</li>
+        <li>Human taste can't be encoded in text</li>
+        <li>The spec is already outdated by the time you finish writing it</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout orange">
+    <div class="callout-body" style="color: var(--orange);">This is waterfall. The spec takes longer than the build.</div>
+  </div>
+</div>
+
+<!-- ===== 9. BUILD FIRST, SPEC LATER ===== -->
+<div class="slide has-bg" data-slide="10" style="background-image: url('images/10-build-first.png');">
+  <div class="big-quote">
+    The product can be <span class="highlight">completed faster</span><br>than the meeting that talks about it.
+  </div>
+  <div style="margin-top: 40px; max-width: 800px; text-align: center;">
+    <div style="display: flex; gap: 40px; justify-content: center; margin-bottom: 30px;">
+      <div style="text-align: center;">
+        <div class="old-way" style="font-size: 1.2em;">Spec → Build → Review</div>
+        <div style="color: var(--muted); font-size: 0.9em; margin-top: 4px;">weeks of meetings to write the spec</div>
+      </div>
+      <div style="font-size: 1.5em; color: var(--accent); align-self: center;">→</div>
+      <div style="text-align: center;">
+        <div style="font-size: 1.2em; color: var(--green); font-weight: 600;">Build → Review → Iterate (or Throw Away)</div>
+        <div style="color: var(--muted); font-size: 0.9em; margin-top: 4px;">minutes to build, then decide if it's worth keeping</div>
+      </div>
+    </div>
+    <div style="color: var(--text); font-size: 1.1em; line-height: 1.6;">
+      <span style="color: var(--muted);">Build v1. Look at it. Throw it away or iterate. The spec writes itself after you've built something real.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 10. THE INTERN TEST ===== -->
+<div class="slide has-bg" data-slide="11" style="background-image: url('images/12-intern-test.png');">
+  <div class="big-quote">
+    If you wouldn't let an unsupervised <span class="highlight">intern</span> do it,<br>
+    don't let an unsupervised <span class="highlight">agent</span> do it.
+  </div>
+  <div style="margin-top: 40px; color: var(--muted); font-size: 1.1em; text-align: center; max-width: 700px; line-height: 1.6;">
+    Scope their work. Review their output. Limit their blast radius.
+  </div>
+</div>
+
+<!-- ===== 12. THE HONEST TAKE ===== -->
+<div class="slide content-slide has-bg" data-slide="12" style="background-image: url('images/07-honest-take.png');">
+  <h2>The <span class="red">Honest</span> Take</h2>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="green-border">What Works</h3>
+      <ul>
+        <li>Building self-contained tools fast</li>
+        <li>Parallel agent teams for distinct tasks</li>
+        <li>Agents that remember you across sessions</li>
+        <li>Verification agents catch real bugs before you see them</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3 class="red-border">What Doesn't (Yet)</h3>
+      <ul>
+        <li>Codebase changes constantly. Things break between versions.</li>
+        <li>Agents say yes to everything, then don't follow through</li>
+        <li>Context disappears between channels</li>
+        <li>Can't handle real multi-agent orchestration</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 13. THE "YES MAN" PROBLEM ===== -->
+<div class="slide content-slide has-bg" data-slide="13" style="background-image: url('images/11-yes-man.png');">
+  <h2>The <span class="red">"Yes Man"</span> Problem</h2>
+  <ul class="bullets">
+    <li>"Sure, I can schedule that for 9 AM!" <span class="dim">— it didn't</span></li>
+    <li>"I'll coordinate all 8 agents in parallel!" <span class="dim">— 3 of them silently failed</span></li>
+    <li>"I'll monitor that and alert you!" <span class="dim">— it forgot 10 minutes later</span></li>
+    <li>"I've verified the output is correct!" <span class="dim">— it checked its own work</span></li>
+  </ul>
+  <div class="callout red" style="margin-top: 20px;">
+    <div class="callout-body" style="color: var(--red);">Separate verifier. Checkpoints. Humans in the loop for anything that matters.</div>
+  </div>
+</div>
+
+<!-- ===== 14. OPINIONATED FRAMEWORK PROBLEM ===== -->
+<div class="slide content-slide has-bg" data-slide="14" style="background-image: url('images/08-opinionated.png');">
+  <h2>The <span class="orange">Opinionated</span> Framework Problem</h2>
+  <ul class="bullets">
+    <li><strong>Search:</strong> Brave forced as default <span class="dim">— we built a workaround</span></li>
+    <li><strong>Coding agents:</strong> Codex preferred <span class="dim">— even with Claude Code configured</span></li>
+    <li><strong>Image generation:</strong> OpenAI assumed <span class="dim">— no native alternative</span></li>
+    <li><strong>Model ecosystem:</strong> Pulls toward specific providers <span class="dim">— friction with Azure/Google/local</span></li>
+  </ul>
+  <div class="callout orange">
+    <div class="callout-body" style="color: var(--orange);">Opinionated = fast start, hard to customize. Unopinionated = slow start, full flexibility. Pick one.</div>
+  </div>
+</div>
+
+<!-- ===== 14. SECURITY & TRUST ===== -->
+<div class="slide content-slide has-bg" data-slide="15" style="background-image: url('images/15-security.png');">
+  <h2><span class="red">Security</span> & Trust</h2>
+  <ul class="bullets">
+    <li>Your agent can read your messages, files, and calendar. How much of that does it actually need?</li>
+    <li>API keys pass through every integration. Each one is an attack surface.</li>
+    <li>Agents send emails, post to channels, create infrastructure. You need approval gates on external actions.</li>
+    <li>Private context from one session can surface in a group chat. We've seen it happen.</li>
+  </ul>
+  <div class="callout red">
+    <div class="callout-body" style="color: var(--red);">More autonomy = more risk. Design for the worst case.</div>
+  </div>
+</div>
+
+<!-- ===== 15. REAL NUMBERS ===== -->
+<div class="slide content-slide has-bg" data-slide="16" style="background-image: url('images/08-cost-speed.png');">
+  <h2>Real <span class="green">Numbers</span></h2>
+  <div class="stats-row" style="margin-bottom: 40px;">
+    <div class="stat"><div class="number">~12</div><div class="label">Minutes per product</div></div>
+    <div class="stat"><div class="number">14</div><div class="label">Total agents</div></div>
+    <div class="stat"><div class="number">3</div><div class="label">Verified products</div></div>
+  </div>
+  <div class="callout green">
+    <div class="callout-body" style="color: var(--green);">A team meeting to discuss building these would take longer than actually building them.</div>
+  </div>
+  <div style="margin-top: 24px; max-width: 900px;">
+    <ul class="bullets">
+      <li>Each product: built, integrated, and QA-verified by independent agent</li>
+      <li>All three ran in parallel. Total wall time: about 14 minutes.</li>
+      <li>Verifier agents caught and fixed real bugs before delivery</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===== 16. DEMO REVEAL ===== -->
+<div class="slide has-bg" data-slide="17" style="background-image: url('images/16-demo-reveal.png');">
+  <h2 style="font-size: 2.8em; font-weight: 700; margin-bottom: 20px;">The <span style="color: var(--green);">Results</span></h2>
+  <div style="font-size: 1.3em; color: var(--muted); text-align: center; margin-bottom: 40px;">
+    While we were talking, 14 agents built 3 products.<br>Let's see what they made.
+  </div>
+  <div class="demo-grid">
+    <div class="demo-card" style="border-color: var(--green);">
+      <div class="emoji">☄️</div>
+      <h3>NASA NEO Dashboard</h3>
+      <p style="color: var(--green);">✓ Built · ✓ Verified · ✓ Live data</p>
+    </div>
+    <div class="demo-card" style="border-color: var(--green);">
+      <div class="emoji">👋</div>
+      <h3>Onboarding System</h3>
+      <p style="color: var(--green);">✓ Built · ✓ Verified · ✓ Channel live</p>
+    </div>
+    <div class="demo-card" style="border-color: var(--green);">
+      <div class="emoji">🔥</div>
+      <h3>Incident Postmortem</h3>
+      <p style="color: var(--green);">✓ Built · ✓ Verified · ✓ Channel live</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 17. KNOW YOUR TOOLS ===== -->
+<div class="slide content-slide has-bg" data-slide="18" style="background-image: url('images/09-know-tools.png');">
+  <h2>Know Your <span class="accent">Tools</span></h2>
+  <table class="compare-table">
+    <tr><th>Need</th><th>Tool</th><th>Why</th></tr>
+    <tr><td>Personal AI layer</td><td>OpenClaw</td><td>Messaging, memory, channels, daily workflows</td></tr>
+    <tr><td>Build software fast</td><td>Claude Code / Codex</td><td>Parallel sub-agents, file I/O, great at code</td></tr>
+    <tr><td>Workflow automation</td><td>n8n / Make / Zapier</td><td>Visual flows, webhooks, reliable triggers</td></tr>
+    <tr><td>Complex orchestration</td><td>LangGraph / Custom</td><td>DAGs, state machines, governance, retry</td></tr>
+    <tr><td>Swarm intelligence</td><td>Custom engines</td><td>Self-improving, parallel research, deep orchestration</td></tr>
+  </table>
+
+</div>
+
+<!-- ===== 18. START SMALL, SCALE SMART ===== -->
+<div class="slide content-slide has-bg" data-slide="19" style="background-image: url('images/17-start-small.png');">
+  <h2>Start <span class="green">Small</span>, Scale Smart</h2>
+  <div class="flow-row">
+    <div class="flow-box" style="border-color: var(--green);">
+      <div class="flow-label">Week 1</div>
+      <div class="flow-value">Crawl</div>
+      <div style="color: var(--muted); font-size: 0.85em; margin-top: 4px;">Single agent, one repetitive task<br>Report generation, data formatting</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box" style="border-color: var(--accent);">
+      <div class="flow-label">Month 1</div>
+      <div class="flow-value">Walk</div>
+      <div style="color: var(--muted); font-size: 0.85em; margin-top: 4px;">Agent + verifier, human review<br>Internal tools, dashboards</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box" style="border-color: var(--accent2);">
+      <div class="flow-label">Quarter 1</div>
+      <div class="flow-value">Run</div>
+      <div style="color: var(--muted); font-size: 0.85em; margin-top: 4px;">Agent teams, parallel builds<br>Multi-surface integration</div>
+    </div>
+  </div>
+  <div class="callout green" style="margin-top: 30px;">
+    <div class="callout-body" style="color: var(--green);">Pick the most repetitive workflow first — not the hardest one.</div>
+  </div>
+</div>
+
+<!-- ===== 19. WHAT'S COMING ===== -->
+<div class="slide content-slide has-bg" data-slide="20" style="background-image: url('images/10-monday.png');">
+  <h2>What's <span class="accent">Coming</span></h2>
+  <ul class="bullets">
+    <li><strong>Beware the "more context = better" trap.</strong> ETH Zurich found that CLAUDE.md/AGENTS.md files <em>reduce</em> task success rates while increasing cost 20%+. LLM-generated ones hurt the most — they repeat what's already in the code. <span class="dim">(arXiv:2602.11988)</span></li>
+    <li><strong>The "have it rewrite itself" pattern is a token furnace.</strong> Agents told to self-update their own instruction files trigger broader exploration without better outcomes. An 800-token human-written skills file outperforms a 15k auto-generated one. <span class="dim">(Scalekit 2026 benchmark)</span></li>
+    <li><strong>MCP adds 10-32× token overhead</strong> vs CLI for the same tasks, with a 28% failure rate on top. A good REST API + a short skills file still beats a protocol wrapper with 43 tool schemas. <span class="dim">(Scalekit 2026: $3.20/mo CLI vs $55.20/mo MCP at 10k ops)</span></li>
+    <li><strong>Local models</strong> are getting good enough to run agents on your own hardware. No API costs, no data leaving your network.</li>
+    <li><strong>Memory is the big unsolved problem.</strong> Agents forget between sessions. Community reports show 80k+ tokens wasted per repeated mistake after context resets. <span class="dim">(anthropics/claude-code #13579)</span></li>
+  </ul>
+</div>
+
+<!-- ===== 20. MONDAY ACTIONS ===== -->
+<div class="slide content-slide has-bg" data-slide="21" style="background-image: url('images/19-monday.png');">
+  <h2>What Your Org Should Do <span class="green">Monday</span></h2>
+  <ul class="bullets">
+    <li><strong>Figure out where you actually are.</strong> Most orgs think they're further along than they are.</li>
+    <li><strong>Pick one boring, repetitive workflow.</strong> Automate that. Not the interesting problem.</li>
+    <li><strong>Build something instead of speccing it.</strong> You'll learn more from a bad v1 than a perfect requirements doc.</li>
+    <li>Add a verifier. Seriously. Don't ship agent output unchecked.</li>
+  </ul>
+</div>
+
+<!-- ===== 21. DISCUSSION ===== -->
+<div class="slide title-slide has-bg" data-slide="22" style="background-image: url('images/11-discussion.png');">
+  <h1>Discussion</h1>
+  <div class="subtitle">What are you building? What's broken?<br>Let's talk.</div>
+  <div class="meta" style="margin-top: 20px;">
+    GitHub: github.com/GixGosu · @brineshrimp<br>
+    <a href="https://www.linkedin.com/in/joshua-burdick-25a993180/" style="color: var(--accent); text-decoration: none;">linkedin.com/in/joshua-burdick-25a993180</a>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button onclick="prevSlide()">←</button>
+  <span class="slide-counter" id="counter">1 / 22</span>
+  <button onclick="nextSlide()">→</button>
+</div>
+
+<script>
+  let current = 1;
+  const total = document.querySelectorAll('.slide').length;
+
+  function showSlide(n) {
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    const target = document.querySelector(`[data-slide="${n}"]`);
+    if (target) {
+      target.classList.add('active');
+      current = n;
+      document.getElementById('counter').textContent = `${current} / ${total}`;
+      document.getElementById('progress').style.width = `${(current / total) * 100}%`;
+    }
+  }
+
+  function nextSlide() { if (current < total) showSlide(current + 1); }
+  function prevSlide() { if (current > 1) showSlide(current - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Home') { e.preventDefault(); showSlide(1); }
+    if (e.key === 'End') { e.preventDefault(); showSlide(total); }
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) diff > 0 ? nextSlide() : prevSlide();
+  });
+
+  showSlide(1);
+</script>
+
+</body>
+</html>

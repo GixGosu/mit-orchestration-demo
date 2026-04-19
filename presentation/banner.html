@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Workshop Pt 2 — Banner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #f0f0f0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* ========== BANNER — 1200×628 (universal social/event size) ========== */
+  .banner {
+    width: 1200px;
+    height: 628px;
+    background: #ffffff;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  /* Subtle top accent bar */
+  .banner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #7c3aed, #a855f7, #7c3aed);
+  }
+
+  /* Subtle geometric accents */
+  .corner-accent {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border: 2px solid rgba(124, 58, 237, 0.08);
+    border-radius: 24px;
+  }
+  .corner-accent.tl { top: 32px; left: 32px; border-right: none; border-bottom: none; }
+  .corner-accent.br { bottom: 32px; right: 32px; border-left: none; border-top: none; }
+
+  .logo {
+    width: 140px;
+    height: 140px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(124, 58, 237, 0.15));
+  }
+
+  .text-block {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .title {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    color: #1e1b4b;
+    line-height: 1.1;
+  }
+
+  .title .accent {
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    font-size: 22px;
+    font-weight: 500;
+    color: #64748b;
+    letter-spacing: -0.3px;
+  }
+
+  .divider {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    border-radius: 2px;
+  }
+
+  .meta {
+    font-size: 17px;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ========== INSTRUCTIONS (not part of banner) ========== */
+  .instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e1b4b;
+    color: #e2e8f0;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    opacity: 0.9;
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="corner-accent tl"></div>
+  <div class="corner-accent br"></div>
+
+  <img src="banner-logo.png" alt="OpenClaw" class="logo">
+
+  <div class="text-block">
+    <div class="title">Open<span class="accent">Claw</span> Workshop Pt 2</div>
+    <div class="subtitle">Building Products Live with Agent Teams</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="meta">MIT GenAI Global &middot; Sunday, March 30, 2026</div>
+</div>
+
+<div class="instructions">
+  Screenshot or use a browser extension to export at 1200×628. The gray background is not part of the banner.
+</div>
+
+</body>
+</html>

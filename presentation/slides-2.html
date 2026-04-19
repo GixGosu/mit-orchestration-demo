@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Risk & The Death of Agent Orchestration — MIT GenAI Global</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --card: #1a2332;
+    --border: #2a3a4e;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --green: #34d399;
+    --orange: #fb923c;
+    --red: #f87171;
+    --pink: #f472b6;
+  }
+
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    padding: 60px 80px;
+    position: relative;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .slide.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .title-slide h1 {
+    font-size: 3.5em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-align: center;
+    background: linear-gradient(135deg, var(--red), var(--orange), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 24px;
+  }
+
+  .title-slide .subtitle {
+    font-size: 1.4em;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .title-slide .meta {
+    font-size: 1.1em;
+    color: var(--muted);
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  .content-slide {
+    align-items: flex-start;
+    padding: 60px 100px;
+  }
+
+  .content-slide h2 {
+    font-size: 2.2em;
+    font-weight: 700;
+    margin-bottom: 40px;
+    letter-spacing: -0.01em;
+  }
+
+  .content-slide h2 .accent { color: var(--accent); }
+  .content-slide h2 .green { color: var(--green); }
+  .content-slide h2 .orange { color: var(--orange); }
+  .content-slide h2 .red { color: var(--red); }
+  .content-slide h2 .pink { color: var(--pink); }
+
+  .bullets {
+    list-style: none;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .bullets li {
+    font-size: 1.35em;
+    line-height: 1.5;
+    padding: 12px 0;
+    padding-left: 32px;
+    position: relative;
+    color: var(--text);
+  }
+
+  .bullets li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .bullets li .dim { color: var(--muted); font-size: 0.85em; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .col h3 {
+    font-size: 1.3em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .col h3.green-border { border-color: var(--green); color: var(--green); }
+  .col h3.red-border { border-color: var(--red); color: var(--red); }
+  .col h3.accent-border { border-color: var(--accent); color: var(--accent); }
+  .col h3.orange-border { border-color: var(--orange); color: var(--orange); }
+
+  .col ul { list-style: none; }
+  .col ul li {
+    font-size: 1.1em;
+    line-height: 1.6;
+    padding: 6px 0;
+    color: var(--text);
+  }
+  .col ul li::before { content: '•'; margin-right: 10px; color: var(--muted); }
+
+  .compare-table {
+    width: 100%;
+    max-width: 1000px;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  .compare-table th {
+    text-align: left;
+    padding: 14px 20px;
+    font-size: 1em;
+    color: var(--accent);
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+  }
+
+  .compare-table td {
+    padding: 14px 20px;
+    font-size: 1.05em;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .badge-green { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+  .badge-orange { background: rgba(251, 146, 60, 0.15); color: var(--orange); }
+  .badge-red { background: rgba(248, 113, 113, 0.15); color: var(--red); }
+
+  .big-quote {
+    font-size: 2em;
+    font-weight: 600;
+    text-align: center;
+    max-width: 800px;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .big-quote .highlight {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .big-quote .highlight-red {
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .callout {
+    margin-top: 30px;
+    padding: 20px 28px;
+    background: var(--card);
+    border-radius: 0 8px 8px 0;
+    max-width: 900px;
+    width: 100%;
+  }
+  .callout.orange { border-left: 3px solid var(--orange); }
+  .callout.accent { border-left: 3px solid var(--accent); }
+  .callout.green { border-left: 3px solid var(--green); }
+  .callout.red { border-left: 3px solid var(--red); }
+
+  .callout .callout-title { font-size: 1.15em; color: var(--text); }
+  .callout .callout-body { font-size: 1.15em; margin-top: 8px; font-weight: 600; }
+
+  .stats-row {
+    display: flex;
+    gap: 40px;
+    margin-top: 20px;
+  }
+
+  .stat { text-align: center; }
+  .stat .number {
+    font-size: 3em;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .stat .number.red-grad {
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .stat .label { font-size: 1em; color: var(--muted); margin-top: 4px; }
+
+  .timeline-block {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    max-width: 1000px;
+    margin: 20px 0;
+  }
+
+  .timeline-item {
+    flex: 1;
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+  }
+
+  .timeline-item .t-date { font-size: 0.8em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .timeline-item .t-event { font-size: 1.05em; font-weight: 600; margin-top: 8px; }
+  .timeline-item .t-detail { font-size: 0.85em; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+  .timeline-item::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-size: 1.2em;
+  }
+  .timeline-item:last-child::after { display: none; }
+
+  .strikethrough { text-decoration: line-through; color: var(--muted); opacity: 0.5; }
+
+  .arch-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 32px;
+    margin: 8px 0;
+    width: 100%;
+    max-width: 700px;
+  }
+  .arch-box .label {
+    font-size: 0.85em;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .arch-box .value { font-size: 1.3em; font-weight: 600; }
+  .arch-arrow { font-size: 1.5em; color: var(--accent); margin: 4px 0; }
+
+  .nav {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .nav button:hover { background: var(--border); }
+  .slide-counter { font-size: 0.9em; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--red), var(--orange));
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+  .killed-label {
+    display: inline-block;
+    background: rgba(248, 113, 113, 0.15);
+    color: var(--red);
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ===== 1. TITLE ===== -->
+<div class="slide title-slide active" data-slide="1">
+  <h1>Platform Risk Is Real</h1>
+  <div class="subtitle">What happens when the vendor breaks your architecture overnight</div>
+  <div class="meta">MIT GenAI Global &middot; April 19, 2026</div>
+</div>
+
+<!-- ===== 2. WHAT WE BUILT ===== -->
+<div class="slide content-slide" data-slide="2">
+  <h2>What We <span class="green">Built</span> <span class="dim" style="font-size: 0.5em; color: var(--muted);">(March 2026)</span></h2>
+  <ul class="bullets">
+    <li>One prompt kicks off an orchestrator</li>
+    <li>Orchestrator spawns 3-4 agents in parallel <span class="dim">— builder, designer, formatter, QA</span></li>
+    <li>Agents build, integrate, verify, and deploy autonomously</li>
+    <li>3 full products built and deployed in ~14 minutes</li>
+    <li>Zero human intervention between kickoff and delivery</li>
+  </ul>
+  <div class="callout green">
+    <div class="callout-body" style="color: var(--green);">This was the demo. One prompt. Autonomous orchestration. Working products.</div>
+  </div>
+</div>
+
+<!-- ===== 3. THE ARCHITECTURE (was) ===== -->
+<div class="slide" data-slide="3">
+  <h2 style="font-size: 2.2em; font-weight: 700; margin-bottom: 30px;">The Architecture <span class="strikethrough">(was)</span></h2>
+  <svg viewBox="0 0 900 380" style="width: 100%; max-width: 900px;" xmlns="http://www.w3.org/2000/svg">
+    <!-- Orchestrator -->
+    <rect x="320" y="10" width="260" height="50" rx="10" fill="#1a2332" stroke="#38bdf8" stroke-width="2"/>
+    <text x="450" y="42" text-anchor="middle" fill="#38bdf8" font-size="16" font-weight="600" font-family="system-ui">SINGLE PROMPT</text>
+
+    <text x="450" y="78" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="system-ui">spawns orchestrator, which spawns agents</text>
+
+    <!-- Spawn lines -->
+    <line x1="370" y1="60" x2="130" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="430" y1="60" x2="350" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="470" y1="60" x2="550" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <line x1="530" y1="60" x2="770" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6,4"/>
+
+    <!-- Agents -->
+    <rect x="30" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="130" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">DATA ARCHITECT</text>
+
+    <rect x="250" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="350" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">UI BUILDER</text>
+
+    <rect x="470" y="100" width="200" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="570" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">CONTENT WRITER</text>
+
+    <rect x="690" y="100" width="180" height="50" rx="10" fill="#1a2332" stroke="#818cf8" stroke-width="2"/>
+    <text x="780" y="130" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="600" font-family="system-ui">QA VERIFIER</text>
+
+    <!-- Merge down -->
+    <line x1="130" y1="150" x2="450" y2="200" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="350" y1="150" x2="450" y2="200" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="570" y1="150" x2="450" y2="200" stroke="#34d399" stroke-width="1.5"/>
+    <line x1="780" y1="150" x2="450" y2="200" stroke="#34d399" stroke-width="1.5"/>
+
+    <!-- Output -->
+    <rect x="320" y="200" width="260" height="50" rx="10" fill="#1a2332" stroke="#34d399" stroke-width="2"/>
+    <text x="450" y="232" text-anchor="middle" fill="#34d399" font-size="16" font-weight="600" font-family="system-ui">WORKING PRODUCT</text>
+
+    <!-- Time label -->
+    <text x="450" y="280" text-anchor="middle" fill="#34d399" font-size="14" font-weight="700" font-family="system-ui">~14 minutes, zero human intervention</text>
+
+    <!-- THE X -->
+    <line x1="100" y1="30" x2="800" y2="260" stroke="#f87171" stroke-width="4" opacity="0.4"/>
+    <line x1="800" y1="30" x2="100" y2="260" stroke="#f87171" stroke-width="4" opacity="0.4"/>
+    <rect x="320" y="300" width="260" height="44" rx="8" fill="rgba(248,113,113,0.15)" stroke="#f87171" stroke-width="2"/>
+    <text x="450" y="328" text-anchor="middle" fill="#f87171" font-size="16" font-weight="700" font-family="system-ui">KILLED — APRIL 2026</text>
+  </svg>
+</div>
+
+<!-- ===== 4. WHAT CHANGED ===== -->
+<div class="slide content-slide" data-slide="4">
+  <h2>What <span class="red">Changed</span></h2>
+  <table class="compare-table">
+    <tr><th>Capability</th><th>March 2026</th><th>April 2026</th></tr>
+    <tr>
+      <td>Sub-agent timeout</td>
+      <td><span class="badge badge-green">No hard limit</span></td>
+      <td><span class="badge badge-red">5 minutes</span></td>
+    </tr>
+    <tr>
+      <td>Agent orchestration</td>
+      <td><span class="badge badge-green">Spawn parallel teams</span></td>
+      <td><span class="badge badge-red">Trivial lookups only</span></td>
+    </tr>
+    <tr>
+      <td>Complex builds via agents</td>
+      <td><span class="badge badge-green">Full apps in one pass</span></td>
+      <td><span class="badge badge-red">Times out mid-build</span></td>
+    </tr>
+    <tr>
+      <td>QA verification agent</td>
+      <td><span class="badge badge-green">Read, verify, fix</span></td>
+      <td><span class="badge badge-red">Can't finish checklist</span></td>
+    </tr>
+    <tr>
+      <td>Autonomous workflows</td>
+      <td><span class="badge badge-green">End-to-end</span></td>
+      <td><span class="badge badge-red">Human must babysit</span></td>
+    </tr>
+  </table>
+  <div class="callout red" style="margin-top: 20px;">
+    <div class="callout-body" style="color: var(--red);">No changelog. No migration path. No alternative architecture provided.</div>
+  </div>
+</div>
+
+<!-- ===== 5. THE NEW "ARCHITECTURE" ===== -->
+<div class="slide content-slide" data-slide="5">
+  <h2>The New <span class="orange">"Architecture"</span></h2>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="green-border">What We Had</h3>
+      <ul>
+        <li>One prompt, autonomous execution</li>
+        <li>Parallel agents, specialized roles</li>
+        <li>Independent QA verification</li>
+        <li>14 minutes, 3 products</li>
+        <li>Human kicks off, walks away</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3 class="red-border">What They Left Us</h3>
+      <ul>
+        <li>One agent, sequential everything</li>
+        <li>No parallelism, no delegation</li>
+        <li>Agent checks its own work</li>
+        <li>Hours of babysitting for the same output</li>
+        <li>Human is the orchestrator now</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout orange">
+    <div class="callout-body" style="color: var(--orange);">Their replacement for multi-agent orchestration is you, sitting there, running prompts one at a time.</div>
+  </div>
+</div>
+
+<!-- ===== 6. THE MATH DOESN'T ADD UP ===== -->
+<div class="slide" data-slide="6">
+  <h2 style="font-size: 2.2em; font-weight: 700; margin-bottom: 40px;">The <span style="color: var(--red);">Math</span> Doesn't Add Up</h2>
+  <div class="stats-row" style="margin-bottom: 50px;">
+    <div class="stat"><div class="number red-grad">$100k</div><div class="label">Advertised monthly spend<br>by "power users"</div></div>
+    <div class="stat"><div class="number">5</div><div class="label">Minute timeout<br>on sub-agents</div></div>
+    <div class="stat"><div class="number red-grad">1</div><div class="label">Agent at a time<br>(effectively)</div></div>
+  </div>
+  <div class="callout red" style="max-width: 800px;">
+    <div class="callout-body" style="color: var(--red);">$100k/month isn't efficiency — it's brute-forcing with one agent what should be parallelized across several. The vendor gets paid more when the system is worse at autonomous work.</div>
+  </div>
+</div>
+
+<!-- ===== 7. PERVERSE INCENTIVES ===== -->
+<div class="slide content-slide" data-slide="7">
+  <h2>The <span class="red">Incentive</span> Problem</h2>
+  <ul class="bullets">
+    <li><strong>Efficient orchestration:</strong> 14 minutes, ~$2 in tokens <span class="dim">— bad for revenue</span></li>
+    <li><strong>Sequential babysitting:</strong> 4 hours, ~$200 in tokens <span class="dim">— great for revenue</span></li>
+    <li>Multi-agent parallelism is a <em>cost optimization for users</em> and a <em>revenue reduction for vendors</em></li>
+    <li>The timeout isn't a technical limitation. It's a business decision.</li>
+  </ul>
+  <div class="callout orange">
+    <div class="callout-body" style="color: var(--orange);">When your vendor's revenue model is tokens-per-task, they have zero incentive to make your tasks finish faster.</div>
+  </div>
+</div>
+
+<!-- ===== 8. WHAT THEY KILLED ===== -->
+<div class="slide content-slide" data-slide="8">
+  <h2>The <span class="red">Kill List</span></h2>
+  <table class="compare-table">
+    <tr><th>Capability</th><th>Status</th><th>Impact</th></tr>
+    <tr>
+      <td>Agent orchestration via sub-agents</td>
+      <td><span class="badge badge-red">Dead</span></td>
+      <td>No autonomous multi-agent workflows</td>
+    </tr>
+    <tr>
+      <td>Long-running autonomous tasks</td>
+      <td><span class="badge badge-red">Dead</span></td>
+      <td>Anything over 5 minutes fails silently</td>
+    </tr>
+    <tr>
+      <td>Independent QA/verification agents</td>
+      <td><span class="badge badge-red">Dead</span></td>
+      <td>Can't read + verify + fix in 5 minutes</td>
+    </tr>
+    <tr>
+      <td>Platform integration (OpenClaw/bridges)</td>
+      <td><span class="badge badge-orange">Fragile</span></td>
+      <td>Breaking changes without notice</td>
+    </tr>
+    <tr>
+      <td>Reproducible demo workflows</td>
+      <td><span class="badge badge-red">Dead</span></td>
+      <td>Last month's demo doesn't run today</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ===== 9. THE REAL LESSON ===== -->
+<div class="slide" data-slide="9">
+  <div class="big-quote">
+    Your demo worked <span class="highlight">last month</span>.<br>
+    The platform changed.<br>
+    Now it <span class="highlight-red">doesn't</span>.
+  </div>
+  <div style="margin-top: 40px; color: var(--muted); font-size: 1.2em; text-align: center; max-width: 700px; line-height: 1.6;">
+    This is not a bug. This is the #1 risk of building on AI platforms in 2026.
+  </div>
+</div>
+
+<!-- ===== 10. PLATFORM RISK TAXONOMY ===== -->
+<div class="slide content-slide" data-slide="10">
+  <h2><span class="orange">Platform Risk</span> Taxonomy</h2>
+  <ul class="bullets">
+    <li><strong>Capability removal:</strong> Features you depend on disappear without notice <span class="dim">— sub-agent timeouts</span></li>
+    <li><strong>Silent degradation:</strong> Same API, worse results, no changelog <span class="dim">— model swaps, guardrail changes</span></li>
+    <li><strong>Pricing shifts:</strong> Your cost model breaks when token pricing changes <span class="dim">— or when efficiency features are removed</span></li>
+    <li><strong>Vendor lock-in:</strong> Your orchestration layer is coupled to one provider's agent API <span class="dim">— no portable standard</span></li>
+    <li><strong>Misaligned roadmap:</strong> They optimize for median users, not your use case <span class="dim">— power users are collateral damage</span></li>
+  </ul>
+</div>
+
+<!-- ===== 11. WHAT YOU SHOULD ACTUALLY BUILD ===== -->
+<div class="slide content-slide" data-slide="11">
+  <h2>What You Should <span class="green">Actually</span> Build</h2>
+  <div class="two-col">
+    <div class="col">
+      <h3 class="red-border">Don't Build On</h3>
+      <ul>
+        <li>Vendor-specific agent orchestration</li>
+        <li>Sub-agent spawning as architecture</li>
+        <li>Any feature without an SLA</li>
+        <li>Assumptions about timeout/context limits</li>
+        <li>"It works today" as your test</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3 class="green-border">Do Build On</h3>
+      <ul>
+        <li>Your own orchestration layer (bash, n8n, custom)</li>
+        <li>LLMs as stateless workers you call</li>
+        <li>Portable prompts, not platform features</li>
+        <li>Multiple provider fallbacks</li>
+        <li>Abstractions you control</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout green">
+    <div class="callout-body" style="color: var(--green);">Own your orchestration. Rent your inference.</div>
+  </div>
+</div>
+
+<!-- ===== 12. THE ABSTRACTION STACK ===== -->
+<div class="slide" data-slide="12">
+  <h2 style="font-size: 2.2em; font-weight: 700; margin-bottom: 30px;">The <span style="color: var(--accent);">Survivable</span> Stack</h2>
+  <div class="arch-box" style="border-color: var(--green);">
+    <div class="label">Your Layer — Orchestration</div>
+    <div class="value" style="color: var(--green);">Bash scripts, n8n, custom engines <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">— you own this, it can't be taken away</span></div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-box" style="border-color: var(--accent);">
+    <div class="label">Interface Layer — Prompt Files</div>
+    <div class="value" style="color: var(--accent);">Portable prompts, MANIFEST files <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">— works with any LLM that can code</span></div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-box" style="border-color: var(--orange);">
+    <div class="label">Vendor Layer — Inference</div>
+    <div class="value" style="color: var(--orange);">Claude / GPT / Gemini / Local <span style="color: var(--muted); font-weight: 400; font-size: 0.8em;">— swappable, interchangeable, disposable</span></div>
+  </div>
+  <div class="callout accent" style="margin-top: 20px; max-width: 700px;">
+    <div class="callout-body" style="color: var(--accent);">The vendor is the most replaceable part of your stack. Design accordingly.</div>
+  </div>
+</div>
+
+<!-- ===== 13. SURVIVING 2026 ===== -->
+<div class="slide content-slide" data-slide="13">
+  <h2>Surviving <span class="accent">2026</span></h2>
+  <ul class="bullets">
+    <li><strong>Record everything.</strong> Your demo works today. Screen-record it. Tomorrow it might not.</li>
+    <li><strong>Own your orchestration.</strong> If a vendor can kill your workflow with a config change, it's not your workflow.</li>
+    <li><strong>Treat LLMs as commodities.</strong> The model is not your moat. Your system design is.</li>
+    <li><strong>Budget for platform breakage.</strong> Plan for 2-3 breaking changes per quarter. It's not if, it's when.</li>
+    <li><strong>Keep your prompts portable.</strong> A good prompt works with Claude, GPT, Gemini. A platform-coupled one works with nothing when the platform changes.</li>
+  </ul>
+</div>
+
+<!-- ===== 14. THE UNCOMFORTABLE TRUTH ===== -->
+<div class="slide" data-slide="14">
+  <div class="big-quote">
+    The agentic AI future everyone is selling<br>
+    <span class="highlight-red">requires orchestration, delegation, and autonomy</span>.<br><br>
+    The vendors are actively <span class="highlight-red">preventing</span> that<br>
+    because it's against their <span class="highlight">economic interest</span>.
+  </div>
+</div>
+
+<!-- ===== 15. DISCUSSION ===== -->
+<div class="slide title-slide" data-slide="15">
+  <h1>Discussion</h1>
+  <div class="subtitle">How do you build on platforms that can change under you overnight?</div>
+  <div class="meta" style="margin-top: 20px;">
+    GitHub: github.com/GixGosu &middot; @brineshrimp<br>
+    <a href="https://www.linkedin.com/in/joshua-burdick-25a993180/" style="color: var(--accent); text-decoration: none;">linkedin.com/in/joshua-burdick-25a993180</a>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button onclick="prevSlide()">&#8592;</button>
+  <span class="slide-counter" id="counter">1 / 15</span>
+  <button onclick="nextSlide()">&#8594;</button>
+</div>
+
+<script>
+  let current = 1;
+  const total = document.querySelectorAll('.slide').length;
+
+  function showSlide(n) {
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    const target = document.querySelector(`[data-slide="${n}"]`);
+    if (target) {
+      target.classList.add('active');
+      current = n;
+      document.getElementById('counter').textContent = `${current} / ${total}`;
+      document.getElementById('progress').style.width = `${(current / total) * 100}%`;
+    }
+  }
+
+  function nextSlide() { if (current < total) showSlide(current + 1); }
+  function prevSlide() { if (current > 1) showSlide(current - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Home') { e.preventDefault(); showSlide(1); }
+    if (e.key === 'End') { e.preventDefault(); showSlide(total); }
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) diff > 0 ? nextSlide() : prevSlide();
+  });
+
+  showSlide(1);
+</script>
+
+</body>
+</html>

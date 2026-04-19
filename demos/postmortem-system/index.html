@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Postmortem: Database Connection Pool Exhaustion — 2026-03-21</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card-bg: #161b22;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --border: #30363d;
+    --red: #f85149;
+    --orange: #d29922;
+    --yellow: #e3b341;
+    --green: #3fb950;
+    --blue: #58a6ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.3rem; margin-bottom: 1rem; color: #fff; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  section { margin-bottom: 3rem; }
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+  }
+  .badge-sev { background: var(--red); color: #fff; }
+  .badge-resolved { background: var(--green); color: #fff; }
+  .header-meta { color: var(--text-muted); margin: 0.5rem 0 1.5rem; font-size: 0.95rem; }
+  .exec-summary {
+    background: #1c2333;
+    border-left: 4px solid var(--blue);
+    padding: 1.2rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  /* Impact cards */
+  .impact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+  .impact-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+    text-align: center;
+  }
+  .impact-card .icon { font-size: 1.5rem; margin-bottom: 0.3rem; }
+  .impact-card .value { font-size: 1.6rem; font-weight: 700; color: #fff; }
+  .impact-card .label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+  /* SLA gauge */
+  .sla-gauge { position: relative; width: 80px; height: 80px; margin: 0 auto 0.3rem; }
+  .sla-gauge svg { transform: rotate(-90deg); }
+  .sla-gauge .track { fill: none; stroke: var(--border); stroke-width: 6; }
+  .sla-gauge .fill { fill: none; stroke: var(--orange); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 226; stroke-dashoffset: 158; transition: stroke-dashoffset 1s ease; }
+  .sla-gauge .pct { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1rem; font-weight: 700; color: #fff; }
+
+  /* Timeline */
+  .timeline-legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; }
+  .timeline-legend span { display: flex; align-items: center; gap: 0.3rem; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .tl-event { position: relative; margin-bottom: 0.8rem; cursor: pointer; }
+  .tl-event::before {
+    content: '';
+    position: absolute;
+    left: -2rem;
+    top: 0.5rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+    transform: translateX(-0.5px);
+  }
+  .tl-event[data-phase="detection"]::before { border-color: var(--red); background: var(--red); }
+  .tl-event[data-phase="investigation"]::before { border-color: var(--orange); background: var(--orange); }
+  .tl-event[data-phase="mitigation"]::before { border-color: var(--green); background: var(--green); }
+  .tl-event[data-phase="resolution"]::before { border-color: var(--blue); background: var(--blue); }
+  .tl-event[data-phase="followup"]::before { border-color: var(--text-muted); background: var(--text-muted); }
+  .tl-time { font-size: 0.8rem; color: var(--text-muted); }
+  .tl-actor { font-weight: 600; color: #fff; }
+  .tl-desc { font-size: 0.9rem; }
+  .tl-detail { display: none; margin-top: 0.3rem; padding: 0.5rem 0.8rem; background: var(--card-bg); border-radius: 4px; font-size: 0.85rem; color: var(--text-muted); border: 1px solid var(--border); }
+  .tl-event.open .tl-detail { display: block; }
+
+  /* 5 Whys */
+  .whys-container { position: relative; }
+  .why-level {
+    display: none;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.8rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+  }
+  .why-level.visible { display: block; }
+  .why-level .num { font-weight: 700; color: var(--blue); font-size: 0.9rem; }
+  .why-level .question { font-weight: 600; color: #fff; margin: 0.3rem 0; }
+  .why-level .answer { color: var(--text); font-size: 0.93rem; }
+  .why-arrow { text-align: center; color: var(--text-muted); font-size: 1.2rem; margin: -0.4rem 0 0.4rem; display: none; }
+  .why-arrow.visible { display: block; }
+  .why-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.5rem 1.2rem;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .why-btn:hover { opacity: 0.85; }
+  .why-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* Well / Wrong */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .well-list, .wrong-list {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 1.2rem;
+    border: 1px solid var(--border);
+  }
+  .well-list { border-left: 4px solid var(--green); }
+  .wrong-list { border-left: 4px solid var(--red); }
+  .well-list h3 { color: var(--green); margin-bottom: 0.8rem; }
+  .wrong-list h3 { color: var(--red); margin-bottom: 0.8rem; }
+  .ww-item { padding: 0.4rem 0; font-size: 0.9rem; display: flex; gap: 0.5rem; align-items: flex-start; }
+  .ww-item .ico { flex-shrink: 0; }
+
+  /* Action items table */
+  .filter-bar { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+  .filter-btn {
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  th:hover { color: #fff; }
+  th .sort-arrow { margin-left: 0.3rem; font-size: 0.7rem; }
+  td { padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); }
+  .p-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .p-badge.p0 { background: var(--red); color: #fff; }
+  .p-badge.p1 { background: var(--orange); color: #fff; }
+  .p-badge.p2 { background: var(--yellow); color: #000; }
+  .status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* Lessons */
+  .lesson-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.8rem;
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+  }
+  .lesson-card .ico { font-size: 1.3rem; flex-shrink: 0; }
+  .lesson-card .num { font-weight: 700; color: var(--blue); margin-right: 0.3rem; }
+
+  /* Related incidents */
+  .related-box {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .related-box strong { color: var(--orange); }
+
+  @media (max-width: 700px) {
+    .two-col { grid-template-columns: 1fr; }
+    .impact-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; color: #000; padding: 1rem; }
+    .exec-summary { background: #f0f0f0; border-left-color: #333; color: #000; }
+    .impact-card, .lesson-card, .well-list, .wrong-list, .related-box, .why-level {
+      background: #fff; border-color: #ccc; color: #000;
+    }
+    .impact-card .value, .tl-actor, .why-level .question { color: #000; }
+    .tl-detail { display: block !important; background: #f8f8f8; color: #333; border-color: #ccc; }
+    .why-level { display: block !important; }
+    .why-arrow { display: block !important; color: #666; }
+    .why-btn, .filter-bar { display: none !important; }
+    h2 { color: #000; border-bottom-color: #ccc; }
+    .header-meta, .tl-time, .label { color: #555; }
+    .sla-gauge .fill { stroke: #666; }
+    .sla-gauge .pct { color: #000; }
+    .timeline::before { background: #ccc; }
+    th { color: #333; border-bottom-color: #999; }
+    td { border-bottom-color: #ddd; }
+    .p-badge.p0 { background: #c00; }
+    .p-badge.p1 { background: #b80; }
+    .p-badge.p2 { background: #cc0; }
+    .badge-sev { background: #c00; }
+    .badge-resolved { background: #090; }
+    a { color: #000; }
+    section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <h1>Database Connection Pool Exhaustion — Production API Outage
+    <span class="badge badge-sev">SEV-1</span>
+    <span class="badge badge-resolved">RESOLVED</span>
+  </h1>
+  <div class="header-meta">
+    <strong>Date:</strong> 2026-03-21 &nbsp;|&nbsp;
+    <strong>Duration:</strong> 43 minutes (03:12 AM → 03:55 AM EDT) &nbsp;|&nbsp;
+    <strong>Last updated:</strong> 2026-03-23
+  </div>
+</header>
+
+<!-- EXECUTIVE SUMMARY -->
+<section>
+  <div class="exec-summary">
+    On March 21, 2026, at 03:12 AM EDT, Meridian Labs experienced a 43-minute production API outage caused by database connection pool exhaustion. The newly deployed BatchPredictionService (v2.14.3) held database connections for entire batch lifecycles instead of releasing them per-record, causing 50+ concurrent overnight batch jobs to starve the 500-connection pool. Approximately 12,000 API requests failed, impacting ~3,400 unique users, with the error rate peaking at 34%. The incident was resolved by killing active batch jobs and rolling back to v2.14.2, consuming ~30% of the monthly SLA error budget.
+  </div>
+</section>
+
+<!-- IMPACT DASHBOARD -->
+<section>
+  <h2>Impact Dashboard</h2>
+  <div class="impact-grid">
+    <div class="impact-card">
+      <div class="icon">⏱️</div>
+      <div class="value">43 min</div>
+      <div class="label">Duration</div>
+    </div>
+    <div class="impact-card">
+      <div class="icon">⚠️</div>
+      <div class="value">~12,000</div>
+      <div class="label">Failed Requests</div>
+    </div>
+    <div class="impact-card">
+      <div class="icon">👥</div>
+      <div class="value">~3,400</div>
+      <div class="label">Users Affected</div>
+    </div>
+    <div class="impact-card">
+      <div class="icon">📈</div>
+      <div class="value">34%</div>
+      <div class="label">Peak Error Rate</div>
+    </div>
+    <div class="impact-card">
+      <div class="icon"></div>
+      <div class="sla-gauge">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle class="track" cx="40" cy="40" r="36"/>
+          <circle class="fill" cx="40" cy="40" r="36"/>
+        </svg>
+        <div class="pct">~30%</div>
+      </div>
+      <div class="label">SLA Budget Used</div>
+    </div>
+  </div>
+</section>
+
+<!-- TIMELINE -->
+<section>
+  <h2>Incident Timeline</h2>
+  <div class="timeline-legend">
+    <span><span class="legend-dot" style="background:var(--red)"></span> Detection</span>
+    <span><span class="legend-dot" style="background:var(--orange)"></span> Investigation</span>
+    <span><span class="legend-dot" style="background:var(--green)"></span> Mitigation</span>
+    <span><span class="legend-dot" style="background:var(--blue)"></span> Resolution</span>
+    <span><span class="legend-dot" style="background:var(--text-muted)"></span> Follow-up</span>
+  </div>
+  <div class="timeline" id="timeline">
+    <div class="tl-event" data-phase="detection" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:12 AM</span> — <span class="tl-actor">PagerDuty</span>
+      <div class="tl-desc">ALERT: API error rate >5% on prod-api-cluster-east</div>
+      <div class="tl-detail">Automated alert triggered when API error rate exceeded the 5% threshold on the production API cluster (east region). Connection pool was already at 100% by this point.</div>
+    </div>
+    <div class="tl-event" data-phase="detection" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:14 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Acknowledged alert. Checking dashboards.</div>
+      <div class="tl-detail">Sarah acknowledged the PagerDuty alert within 2 minutes and began investigating via monitoring dashboards.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:16 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Error rate at 12% and climbing. All 500s from /api/v2/predictions endpoint. Normal traffic volume.</div>
+      <div class="tl-detail">Identified the affected endpoint as /api/v2/predictions. Traffic volume was normal, ruling out a traffic spike as the cause.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:18 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Database connection pool at 100% capacity on primary RDS instance. No connections being released. Identified as bottleneck.</div>
+      <div class="tl-detail">Primary RDS instance connection pool completely saturated. All 500 connections in use with none being returned to the pool. This was identified as the root cause of the 500 errors.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:20 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Paged Marcus Webb (DB Lead) and Priya Sharma (Backend Lead).</div>
+      <div class="tl-detail">Escalated to database and backend leads for deeper investigation into why connections were not being released.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:23 AM</span> — <span class="tl-actor">Marcus Webb (DB Lead)</span>
+      <div class="tl-desc">Online. Active connections at 500/500 (max pool). Wait queue growing.</div>
+      <div class="tl-detail">Marcus confirmed pool exhaustion from the database side. The wait queue was growing, meaning new connection requests were queueing up with no available connections.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:27 AM</span> — <span class="tl-actor">Priya Sharma (Backend Lead)</span>
+      <div class="tl-desc">Checking recent deployments. v2.14.3 shipped yesterday at 5 PM — new batch prediction pipeline.</div>
+      <div class="tl-detail">Identified the recent deployment v2.14.3 as a likely suspect. This version introduced the new batch prediction pipeline feature requested by enterprise customers.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:31 AM</span> — <span class="tl-actor">Marcus Webb (DB Lead)</span>
+      <div class="tl-desc">Found root cause: batch_predict stored procedure running 45-second queries, not releasing connections. Each batch holds a connection for entire batch instead of per-record.</div>
+      <div class="tl-detail">Slow query log analysis revealed the batch_predict stored procedure as the culprit. Each invocation held its database connection for the full duration of the batch job rather than acquiring and releasing per-record.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:33 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Error rate at 34%. Customer-facing dashboard down. Mobile app returning errors.</div>
+      <div class="tl-detail">Peak impact reached. Error rate hit 34% — the highest point during the incident. Both the customer-facing dashboard and mobile application were affected.</div>
+    </div>
+    <div class="tl-event" data-phase="investigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:35 AM</span> — <span class="tl-actor">Priya Sharma (Backend Lead)</span>
+      <div class="tl-desc">Confirmed: BatchPredictionService opens connection at batch start, doesn't close until all records processed. 50+ concurrent batches × 10+ min each = pool starvation.</div>
+      <div class="tl-detail">Code-level confirmation of the root cause. The BatchPredictionService's connection-per-batch design meant that with 50+ concurrent overnight batch jobs, each holding a connection for 10+ minutes, the 500-connection pool was completely exhausted.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:37 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Proposed mitigation options: (1) Kill batch jobs, (2) Increase pool size, (3) Rollback to v2.14.2.</div>
+      <div class="tl-detail">Three mitigation options presented. The team needed to decide between quick fixes (kill jobs, increase pool) and a full rollback to the previous stable version.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:38 AM</span> — <span class="tl-actor">Marcus Webb (DB Lead)</span>
+      <div class="tl-desc">Recommended against pool size increase (bandaid, memory limits). Advised: kill batch jobs + rollback.</div>
+      <div class="tl-detail">Marcus advised that increasing the pool size would only be a temporary fix and could cause memory issues on the RDS instance. Recommended the more definitive approach of killing current jobs and rolling back.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:39 AM</span> — <span class="tl-actor">Priya Sharma (Backend Lead)</span>
+      <div class="tl-desc">Agreed. Initiated rollback to v2.14.2. ETA 8 minutes.</div>
+      <div class="tl-detail">Team aligned on the rollback strategy. Priya began the rollback process to the previous stable version v2.14.2.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:41 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Killing all active batch prediction jobs. Pool connections dropping: 500 → 420 → 380.</div>
+      <div class="tl-detail">Sarah terminated all running batch prediction jobs while Priya handled the rollback. Connection pool began draining immediately as terminated jobs released their connections.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:44 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Pool at 200. Error rate dropping: 34% → 18% → 9%.</div>
+      <div class="tl-detail">Mitigation was working. Pool dropped to 200 active connections and error rate was decreasing rapidly.</div>
+    </div>
+    <div class="tl-event" data-phase="mitigation" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:47 AM</span> — <span class="tl-actor">Priya Sharma (Backend Lead)</span>
+      <div class="tl-desc">Rollback to v2.14.2 complete. Deployment verified.</div>
+      <div class="tl-detail">Rollback completed within the estimated 8-minute window. Deployment was verified to be running the previous stable version.</div>
+    </div>
+    <div class="tl-event" data-phase="resolution" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:49 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Error rate at 1.2%. Pool connections at 85/500. Customer dashboard recovering. Mobile app responding.</div>
+      <div class="tl-detail">System entering recovery. Error rate dropped to near-normal levels. Pool connections stabilized at healthy levels. Customer-facing services began recovering.</div>
+    </div>
+    <div class="tl-event" data-phase="resolution" onclick="this.classList.toggle('open')">
+      <span class="tl-time">03:55 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">All clear. Error rate &lt;0.5%. Pool stable at ~80 connections. Incident declared resolved.</div>
+      <div class="tl-detail">Error rate returned to normal operating levels. Connection pool stabilized. Sarah officially declared the incident resolved after confirming all services were healthy.</div>
+    </div>
+    <div class="tl-event" data-phase="followup" onclick="this.classList.toggle('open')">
+      <span class="tl-time">04:00 AM</span> — <span class="tl-actor">Marcus Webb (DB Lead)</span>
+      <div class="tl-desc">Final impact: ~12,000 failed API requests, ~3,400 unique users affected. Overnight batch results need re-run.</div>
+      <div class="tl-detail">Marcus compiled the final impact numbers from the monitoring data. Batch prediction results from the overnight jobs were lost and would need to be re-processed.</div>
+    </div>
+    <div class="tl-event" data-phase="followup" onclick="this.classList.toggle('open')">
+      <span class="tl-time">04:05 AM</span> — <span class="tl-actor">Priya Sharma (Backend Lead)</span>
+      <div class="tl-desc">Committed to fixing connection handling (connection-per-record with proper pooling) and adding circuit breaker.</div>
+      <div class="tl-detail">Priya identified the code fix needed: change from connection-per-batch to connection-per-record pattern with proper pool return. Also proposed adding a circuit breaker to prevent any single service from exhausting the pool.</div>
+    </div>
+    <div class="tl-event" data-phase="followup" onclick="this.classList.toggle('open')">
+      <span class="tl-time">04:10 AM</span> — <span class="tl-actor">Sarah Chen (SRE)</span>
+      <div class="tl-desc">Action items logged. Postmortem scheduled for Monday 10 AM.</div>
+      <div class="tl-detail">All action items were documented. A formal postmortem review was scheduled for Monday at 10 AM to discuss findings and assign follow-up work.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ROOT CAUSE — 5 WHYS -->
+<section>
+  <h2>Root Cause — 5 Whys</h2>
+  <div class="whys-container" id="whys">
+    <div class="why-level visible" data-why="1">
+      <div class="num">Why #1</div>
+      <div class="question">Why did the API return 500 errors?</div>
+      <div class="answer">→ Database connection pool exhausted (500/500 connections in use)</div>
+    </div>
+    <div class="why-arrow" data-arrow="2">↓</div>
+    <div class="why-level" data-why="2">
+      <div class="num">Why #2</div>
+      <div class="question">Why was the pool exhausted?</div>
+      <div class="answer">→ BatchPredictionService held connections for entire batch lifecycle instead of per-record</div>
+    </div>
+    <div class="why-arrow" data-arrow="3">↓</div>
+    <div class="why-level" data-why="3">
+      <div class="num">Why #3</div>
+      <div class="question">Why did it hold connections that long?</div>
+      <div class="answer">→ Connection-per-batch design: one connection opened at batch start, not released until all records processed. With 50+ concurrent overnight batches × 10+ min each = pool starvation</div>
+    </div>
+    <div class="why-arrow" data-arrow="4">↓</div>
+    <div class="why-level" data-why="4">
+      <div class="num">Why #4</div>
+      <div class="question">Why wasn't this caught before production?</div>
+      <div class="answer">→ No load testing performed on batch pipeline with concurrent jobs. Feature was shipped without performance validation.</div>
+    </div>
+    <div class="why-arrow" data-arrow="5">↓</div>
+    <div class="why-level" data-why="5">
+      <div class="num">Why #5</div>
+      <div class="question">Why no load testing?</div>
+      <div class="answer">→ Feature was fast-tracked for enterprise customer deadline. Standard perf testing checklist was skipped.</div>
+    </div>
+  </div>
+  <button class="why-btn" id="whyBtn" onclick="revealNextWhy()">Why? ↓</button>
+</section>
+
+<!-- WHAT WENT WELL / WRONG -->
+<section>
+  <h2>What Went Well / What Went Wrong</h2>
+  <div class="two-col">
+    <div class="well-list">
+      <h3>✅ What Went Well</h3>
+      <div class="ww-item"><span class="ico">✅</span> Fast detection-to-resolution: 43 minutes total, 12 minutes from page to identification</div>
+      <div class="ww-item"><span class="ico">✅</span> Team mobilized at 3 AM without hesitation</div>
+      <div class="ww-item"><span class="ico">✅</span> Correct tactical decision: rollback to v2.14.2 instead of bandaid (increasing pool size)</div>
+      <div class="ww-item"><span class="ico">✅</span> Clear communication in incident channel throughout</div>
+      <div class="ww-item"><span class="ico">✅</span> Sarah (SRE) drove mitigation effectively — killed batch jobs while Priya rolled back</div>
+    </div>
+    <div class="wrong-list">
+      <h3>❌ What Went Wrong</h3>
+      <div class="ww-item"><span class="ico">❌</span> No pre-production load testing for the batch pipeline feature</div>
+      <div class="ww-item"><span class="ico">❌</span> Previous incident's P2 action item was never completed (6 months overdue)</div>
+      <div class="ww-item"><span class="ico">❌</span> Alert threshold was too high (95% = already exhausted in practice)</div>
+      <div class="ww-item"><span class="ico">❌</span> Connection lifecycle pattern wasn't caught in code review</div>
+      <div class="ww-item"><span class="ico">❌</span> No circuit breaker exists for connection pool exhaustion</div>
+      <div class="ww-item"><span class="ico">❌</span> Batch pipeline launched without a rollback plan or canary deployment</div>
+    </div>
+  </div>
+</section>
+
+<!-- ACTION ITEMS -->
+<section>
+  <h2>Action Items</h2>
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-btn active" onclick="filterActions('all', this)">All</button>
+    <button class="filter-btn" onclick="filterActions('P0', this)">P0</button>
+    <button class="filter-btn" onclick="filterActions('P1', this)">P1</button>
+    <button class="filter-btn" onclick="filterActions('P2', this)">P2</button>
+  </div>
+  <table id="actionTable">
+    <thead>
+      <tr>
+        <th onclick="sortTable(0)" style="width:3%"># <span class="sort-arrow"></span></th>
+        <th onclick="sortTable(1)">Action <span class="sort-arrow"></span></th>
+        <th onclick="sortTable(2)" style="width:13%">Owner <span class="sort-arrow"></span></th>
+        <th onclick="sortTable(3)" style="width:8%">Priority <span class="sort-arrow"></span></th>
+        <th onclick="sortTable(4)" style="width:11%">Due Date <span class="sort-arrow"></span></th>
+        <th onclick="sortTable(5)" style="width:7%">Status <span class="sort-arrow"></span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-priority="P0">
+        <td>1</td>
+        <td>Fix BatchPredictionService: connection-per-record with proper pool return</td>
+        <td>Priya Sharma</td>
+        <td><span class="p-badge p0">P0</span></td>
+        <td>2026-03-24</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P0">
+        <td>2</td>
+        <td>Add per-service connection pool limits (max 20% of pool per service)</td>
+        <td>Marcus Webb</td>
+        <td><span class="p-badge p0">P0</span></td>
+        <td>2026-03-28</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P1">
+        <td>3</td>
+        <td>Lower connection pool alert threshold from 95% to 80%</td>
+        <td>Sarah Chen</td>
+        <td><span class="p-badge p1">P1</span></td>
+        <td>2026-03-22</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P1">
+        <td>4</td>
+        <td>Implement circuit breaker: reject new connections when pool &gt;90%</td>
+        <td>Priya Sharma</td>
+        <td><span class="p-badge p1">P1</span></td>
+        <td>2026-03-31</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P1">
+        <td>5</td>
+        <td>Mandatory load testing gate for all new data pipeline features</td>
+        <td>Engineering Lead</td>
+        <td><span class="p-badge p1">P1</span></td>
+        <td>2026-04-07</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P2">
+        <td>6</td>
+        <td>Audit ALL open P2+ action items from previous incidents</td>
+        <td>Sarah Chen</td>
+        <td><span class="p-badge p2">P2</span></td>
+        <td>2026-04-14</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+      <tr data-priority="P2">
+        <td>7</td>
+        <td>Add canary deployment requirement for services touching shared resources</td>
+        <td>Jordan Kim</td>
+        <td><span class="p-badge p2">P2</span></td>
+        <td>2026-04-14</td>
+        <td><span class="status-badge">Open</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- LESSONS LEARNED -->
+<section>
+  <h2>Lessons Learned</h2>
+  <div class="lesson-card">
+    <span class="ico">💡</span>
+    <div><span class="num">1.</span> <strong>P2 action items from previous incidents are not optional.</strong> The exact same class of bug hit us twice because we deprioritized the fix.</div>
+  </div>
+  <div class="lesson-card">
+    <span class="ico">💡</span>
+    <div><span class="num">2.</span> <strong>Load testing is mandatory for features that touch shared resources</strong> (DB pools, caches, queues). No exceptions for customer deadlines.</div>
+  </div>
+  <div class="lesson-card">
+    <span class="ico">💡</span>
+    <div><span class="num">3.</span> <strong>Alert thresholds should fire with margin to act</strong> — 80% gives you time, 95% gives you a notification that you're already down.</div>
+  </div>
+  <div class="lesson-card">
+    <span class="ico">💡</span>
+    <div><span class="num">4.</span> <strong>Connection lifecycle is a code review checkpoint.</strong> Any code that opens a long-lived connection to a shared pool needs explicit scrutiny.</div>
+  </div>
+</section>
+
+<!-- RELATED INCIDENTS -->
+<section>
+  <h2>Related Incidents</h2>
+  <div class="related-box">
+    <strong>INC-2025-09-14</strong> — Connection pool exhaustion caused by ReportingService. Same pattern: single service consuming entire pool. P2 action item from that incident ("per-service pool limits") was never implemented. This directly contributed to the current incident.
+  </div>
+</section>
+
+<script>
+// 5 Whys drill-down
+let currentWhy = 1;
+function revealNextWhy() {
+  currentWhy++;
+  if (currentWhy > 5) return;
+  const arrow = document.querySelector('[data-arrow="' + currentWhy + '"]');
+  const level = document.querySelector('[data-why="' + currentWhy + '"]');
+  if (arrow) arrow.classList.add('visible');
+  if (level) level.classList.add('visible');
+  if (currentWhy >= 5) {
+    document.getElementById('whyBtn').disabled = true;
+    document.getElementById('whyBtn').textContent = 'Root cause reached';
+  }
+}
+
+// Timeline expand/collapse handled via onclick in HTML
+
+// Action item filtering
+function filterActions(priority, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const rows = document.querySelectorAll('#actionTable tbody tr');
+  rows.forEach(row => {
+    if (priority === 'all' || row.dataset.priority === priority) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+// Table sorting
+let sortDir = {};
+function sortTable(colIndex) {
+  const table = document.getElementById('actionTable');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const dir = sortDir[colIndex] = !(sortDir[colIndex]);
+
+  rows.sort((a, b) => {
+    let aVal = a.cells[colIndex].textContent.trim();
+    let bVal = b.cells[colIndex].textContent.trim();
+    // numeric sort for # column
+    if (colIndex === 0) {
+      return dir ? aVal - bVal : bVal - aVal;
+    }
+    return dir ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  });
+
+  rows.forEach(row => tbody.appendChild(row));
+
+  // Update sort arrows
+  table.querySelectorAll('th .sort-arrow').forEach((arrow, i) => {
+    if (i === colIndex) {
+      arrow.textContent = dir ? '▲' : '▼';
+    } else {
+      arrow.textContent = '';
+    }
+  });
+}
+</script>
+
+</body>
+</html>

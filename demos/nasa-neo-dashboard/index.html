@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NASA Near-Earth Object Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ========== RESET & BASE ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep: #0a0e17;
+  --bg-panel: #111827;
+  --border: #1e293b;
+  --accent: #00d4ff;
+  --hazard: #ff6b35;
+  --hazard-row: rgba(255, 107, 53, 0.08);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --font-mono: 'Courier New', Consolas, monospace;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ========== LOADING / ERROR / EMPTY STATES ========== */
+#loading-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg-deep);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 16px;
+  transition: opacity 0.6s ease;
+}
+#loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  color: var(--accent);
+  animation: pulse-text 1.8s ease-in-out infinite;
+}
+.loading-text::after {
+  content: '_';
+  animation: blink-cursor 0.7s step-end infinite;
+}
+@keyframes pulse-text { 0%,100%{ opacity:0.4; } 50%{ opacity:1; } }
+@keyframes blink-cursor { 0%,100%{ opacity:1; } 50%{ opacity:0; } }
+
+#error-banner {
+  display: none;
+  background: rgba(255,50,50,0.12);
+  border: 1px solid #ff3232;
+  color: #ff6b6b;
+  padding: 12px 24px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  position: sticky; top: 0; z-index: 100;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+}
+
+/* ========== VISUALIZATION AREA ========== */
+#viz-container {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  min-height: 420px;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+#orbital-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- Tooltip ---- */
+#canvas-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(17,24,39,0.95);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  max-width: 280px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 50;
+}
+#canvas-tooltip.visible { opacity: 1; }
+#canvas-tooltip .tt-name {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+#canvas-tooltip .tt-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+#canvas-tooltip .tt-row span:last-child { color: var(--text-primary); }
+#canvas-tooltip .tt-hazard {
+  margin-top: 6px;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 3px;
+}
+
+/* ---- Controls Bar ---- */
+#controls-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: #111827cc;
+  backdrop-filter: blur(8px);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  z-index: 30;
+  border-top: 1px solid var(--border);
+}
+
+#controls-bar button, #controls-bar select {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  white-space: nowrap;
+}
+#controls-bar button:hover, #controls-bar select:hover {
+  border-color: var(--accent);
+}
+#controls-bar button.active {
+  background: rgba(0,212,255,0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#time-scrubber {
+  flex: 1 1 200px;
+  min-width: 120px;
+  accent-color: var(--accent);
+  height: 6px;
+  cursor: pointer;
+}
+
+#timestamp-display {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent);
+  min-width: 175px;
+  text-align: right;
+}
+
+/* ---- Date Range Selector ---- */
+#date-range-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#date-range-bar label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+#date-range-bar input[type="date"] {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  cursor: pointer;
+  color-scheme: dark;
+}
+#date-range-bar input[type="date"]:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+#date-range-bar button {
+  background: var(--bg-deep);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 5px 16px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#date-range-bar button:hover {
+  background: rgba(0,212,255,0.12);
+}
+#date-range-bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#date-range-msg {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--hazard);
+}
+
+.controls-group {
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ========== DASHBOARD ========== */
+#dashboard {
+  padding: 24px 20px 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- Threat Cards ---- */
+#threat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.threat-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.3s;
+}
+.threat-card:hover { border-color: #334155; }
+.threat-card.glow-hazard {
+  border-color: var(--hazard);
+  box-shadow: 0 0 20px rgba(255,107,53,0.15);
+}
+.card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.card-value {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.card-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.card-sub {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ---- Table ---- */
+#table-section { margin-bottom: 32px; }
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+#neo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+#neo-table th {
+  background: var(--bg-panel);
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  position: sticky; top: 0;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+#neo-table th:hover { color: var(--accent); }
+#neo-table th .sort-arrow { margin-left: 4px; font-size: 0.7rem; }
+
+#neo-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+#neo-table tr { transition: background 0.15s; cursor: pointer; }
+#neo-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+#neo-table tbody tr:hover { background: rgba(0,212,255,0.06); }
+#neo-table tbody tr.hazardous-row { background: var(--hazard-row); }
+#neo-table tbody tr.hazardous-row:hover { background: rgba(255,107,53,0.14); }
+#neo-table tbody tr.selected-row { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+.badge-hazard { background: rgba(255,107,53,0.2); color: var(--hazard); }
+.badge-safe   { background: rgba(0,212,255,0.12); color: var(--accent); }
+
+/* ---- Size Comparison ---- */
+#size-section { margin-bottom: 32px; }
+#size-bars {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  position: relative;
+}
+.size-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.size-bar-label {
+  width: 160px;
+  min-width: 100px;
+  font-size: 0.78rem;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.size-bar-track {
+  flex: 1;
+  height: 22px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 3px;
+  position: relative;
+  overflow: visible;
+}
+.size-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+  position: relative;
+}
+.size-bar-value {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  transform: translate(100%, -50%);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-primary);
+  padding-left: 8px;
+  white-space: nowrap;
+}
+.ref-line {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  border-left: 1px dashed var(--text-secondary);
+  opacity: 0.3;
+  z-index: 2;
+}
+.ref-line-label {
+  position: absolute;
+  top: -18px;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ---- Timeline Chart ---- */
+#timeline-section { margin-bottom: 32px; }
+#timeline-chart-wrap {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  height: 320px;
+  position: relative;
+}
+
+/* ---- Detail Panel ---- */
+#detail-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  display: none;
+  margin-bottom: 32px;
+}
+#detail-panel.open { display: block; }
+#detail-panel h3 {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.detail-item label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.detail-item span {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+#detail-jpl-link {
+  display: inline-block;
+  margin-top: 16px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.85rem;
+  border: 1px solid var(--accent);
+  padding: 6px 16px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+#detail-jpl-link:hover { background: rgba(0,212,255,0.1); }
+#detail-close {
+  float: right;
+  background: none; border: none;
+  color: var(--text-secondary);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+}
+#detail-close:hover { color: var(--text-primary); }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 900px) {
+  #threat-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  #threat-cards { grid-template-columns: 1fr; }
+  #controls-bar { padding: 8px 10px; gap: 6px; }
+  .size-bar-label { width: 80px; min-width: 60px; font-size: 0.7rem; }
+}
+</style>
+<script>
+/**
+ * NASA Near-Earth Object Dashboard — Data Layer
+ * Provides API integration, response parsing, orbital calculations,
+ * animation support, and state management.
+ */
+var NeoDataLayer = (function () {
+  'use strict';
+
+  var API_BASE = 'https://api.nasa.gov/neo/rest/v1/feed';
+  var API_KEY = 'DEMO_KEY'; // Get your own free key at https://api.nasa.gov/#signUp
+  var MAX_SPAN_DAYS = 7;
+  var FETCH_TIMEOUT_MS = 30000;
+
+  var _state = 'idle';
+  var _error = null;
+  var _data = [];
+  var _dateRange = { start: null, end: null };
+
+  function formatDate(d) {
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function parseDate(str) {
+    var parts = str.split('-');
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+
+  function daysBetween(a, b) {
+    var msPerDay = 86400000;
+    return Math.round((b - a) / msPerDay);
+  }
+
+  function defaultDateRange() {
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var end = new Date(today);
+    end.setDate(end.getDate() + 6);
+    return { start: formatDate(today), end: formatDate(end) };
+  }
+
+  function fetchWithTimeout(url, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var didTimeout = false;
+      var timer = setTimeout(function () {
+        didTimeout = true;
+        reject(new Error('TIMEOUT'));
+      }, timeoutMs);
+
+      fetch(url)
+        .then(function (response) {
+          clearTimeout(timer);
+          if (didTimeout) return;
+          resolve(response);
+        })
+        .catch(function (err) {
+          clearTimeout(timer);
+          if (didTimeout) return;
+          reject(err);
+        });
+    });
+  }
+
+  function classifyError(err, response) {
+    if (err && err.message === 'TIMEOUT') {
+      return 'SIGNAL LOST \u2014 Network connection failed';
+    }
+    if (err && !response) {
+      return 'SIGNAL LOST \u2014 Network connection failed';
+    }
+    if (response) {
+      if (response.status === 429) {
+        return 'SIGNAL THROTTLED \u2014 API rate limit exceeded. Retry in 60s.';
+      }
+      if (response.status === 403 || response.status === 401) {
+        return 'AUTHENTICATION FAILED \u2014 Invalid API credentials';
+      }
+    }
+    return 'SIGNAL LOST \u2014 Network connection failed';
+  }
+
+  function cleanName(rawName) {
+    return rawName ? rawName.trim() : '';
+  }
+
+  function safeFloat(val, fallback) {
+    var n = parseFloat(val);
+    return isNaN(n) ? fallback : n;
+  }
+
+  function parseNeoEntry(raw, windowStart, windowEnd) {
+    try {
+      if (!raw || !raw.id) return null;
+
+      var diameter = raw.estimated_diameter && raw.estimated_diameter.meters;
+      var approach =
+        raw.close_approach_data && raw.close_approach_data.length > 0
+          ? raw.close_approach_data[0]
+          : null;
+
+      if (!approach) return null;
+
+      var approachDateStr = approach.close_approach_date || '';
+      var approachDateFull = approach.close_approach_date_full || '';
+
+      var missKm = safeFloat(
+        approach.miss_distance && approach.miss_distance.kilometers, 0);
+      var missLunar = safeFloat(
+        approach.miss_distance && approach.miss_distance.lunar, 0);
+      var velocityKmh = safeFloat(
+        approach.relative_velocity &&
+          approach.relative_velocity.kilometers_per_hour, 0);
+
+      // NASA returns full dates like "2026-Apr-18 09:30" — parse manually
+      var approachMs = NaN;
+      if (approachDateFull) {
+        // Try direct parse first (works for ISO-like formats)
+        approachMs = new Date(approachDateFull).getTime();
+      }
+      if (isNaN(approachMs)) {
+        approachMs = parseDate(approachDateStr).getTime();
+      }
+
+      var windowMs = windowEnd - windowStart || 1;
+      var fraction = (approachMs - windowStart) / windowMs;
+      fraction = Math.max(0, Math.min(1, fraction));
+      var angle = fraction * 2 * Math.PI;
+
+      return {
+        id: String(raw.id),
+        name: cleanName(raw.name),
+        estimated_diameter_min_m: safeFloat(
+          diameter && diameter.estimated_diameter_min, 0),
+        estimated_diameter_max_m: safeFloat(
+          diameter && diameter.estimated_diameter_max, 0),
+        is_potentially_hazardous: !!raw.is_potentially_hazardous_asteroid,
+        close_approach_date: approachDateStr,
+        close_approach_date_full: approachDateFull,
+        miss_distance_km: missKm,
+        miss_distance_lunar: missLunar,
+        relative_velocity_kmh: velocityKmh,
+        absolute_magnitude: safeFloat(raw.absolute_magnitude_h, 0),
+        nasa_jpl_url: raw.nasa_jpl_url || '',
+        _approachMs: approachMs,
+        _angle: angle,
+        _radius_raw: missLunar,
+        orbital_position: null
+      };
+    } catch (e) {
+      console.warn('NeoDataLayer: skipping malformed entry', e);
+      return null;
+    }
+  }
+
+  function parseResponse(json, startDate, endDate) {
+    var windowStart = parseDate(startDate).getTime();
+    var windowEnd = parseDate(endDate).getTime() + 86400000;
+
+    var neosByDate = json.near_earth_objects || {};
+    var entries = [];
+
+    Object.keys(neosByDate).forEach(function (dateKey) {
+      var list = neosByDate[dateKey];
+      if (!Array.isArray(list)) return;
+      list.forEach(function (raw) {
+        var parsed = parseNeoEntry(raw, windowStart, windowEnd);
+        if (parsed) entries.push(parsed);
+      });
+    });
+
+    var maxLunar = 0;
+    entries.forEach(function (e) {
+      if (e._radius_raw > maxLunar) maxLunar = e._radius_raw;
+    });
+    if (maxLunar === 0) maxLunar = 1;
+
+    entries.forEach(function (e) {
+      var rNorm = e._radius_raw / maxLunar;
+      var angle = e._angle;
+      e.orbital_position = {
+        x: rNorm * Math.cos(angle),
+        y: rNorm * Math.sin(angle),
+        angle: angle,
+        radius_normalized: rNorm
+      };
+      delete e._angle;
+      delete e._radius_raw;
+    });
+
+    entries.sort(function (a, b) {
+      return a._approachMs - b._approachMs;
+    });
+
+    return entries;
+  }
+
+  function getPositionsAtTime(timestamp) {
+    if (!_data || _data.length === 0) return [];
+
+    var windowStart = parseDate(_dateRange.start).getTime();
+    var windowEnd = parseDate(_dateRange.end).getTime() + 86400000;
+    var ts = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+
+    var maxLunar = 0;
+    _data.forEach(function (neo) {
+      if (neo.miss_distance_lunar > maxLunar) maxLunar = neo.miss_distance_lunar;
+    });
+    if (maxLunar === 0) maxLunar = 1;
+
+    return _data.map(function (neo) {
+      var approachMs = neo._approachMs;
+      var windowMs = windowEnd - windowStart || 1;
+      var progressRaw = (ts - windowStart) / windowMs;
+      progressRaw = Math.max(0, Math.min(1, progressRaw));
+
+      var approachFraction = (approachMs - windowStart) / windowMs;
+      approachFraction = Math.max(0, Math.min(1, approachFraction));
+
+      var approachProgress;
+      if (progressRaw <= approachFraction) {
+        approachProgress = approachFraction > 0
+          ? progressRaw / approachFraction : 1;
+      } else {
+        var remaining = 1 - approachFraction;
+        approachProgress = remaining > 0
+          ? 1 - (progressRaw - approachFraction) / remaining : 1;
+      }
+      approachProgress = Math.max(0, Math.min(1, approachProgress));
+
+      var distanceFactor = 2 - approachProgress;
+      var baseRadius = neo.miss_distance_lunar / maxLunar;
+      var radius = baseRadius * distanceFactor;
+      var angle = neo.orbital_position.angle;
+
+      return {
+        id: neo.id,
+        x: radius * Math.cos(angle),
+        y: radius * Math.sin(angle),
+        radius: radius,
+        angle: angle,
+        approachProgress: approachProgress
+      };
+    });
+  }
+
+  function getSummaryStats() {
+    if (!_data || _data.length === 0) {
+      return { totalCount: 0, hazardousCount: 0, closestApproach: null, fastestObject: null };
+    }
+
+    var hazardousCount = 0;
+    var closest = null;
+    var fastest = null;
+
+    _data.forEach(function (neo) {
+      if (neo.is_potentially_hazardous) hazardousCount++;
+      if (!closest || neo.miss_distance_km < closest.miss_distance_km) closest = neo;
+      if (!fastest || neo.relative_velocity_kmh > fastest.relative_velocity_kmh) fastest = neo;
+    });
+
+    return {
+      totalCount: _data.length,
+      hazardousCount: hazardousCount,
+      closestApproach: closest
+        ? { name: closest.name, distance_km: closest.miss_distance_km, distance_lunar: closest.miss_distance_lunar }
+        : null,
+      fastestObject: fastest
+        ? { name: fastest.name, velocity_kmh: fastest.relative_velocity_kmh }
+        : null
+    };
+  }
+
+  function fetchNeoData(startDate, endDate) {
+    if (!startDate || !endDate) {
+      var defaults = defaultDateRange();
+      startDate = startDate || defaults.start;
+      endDate = endDate || defaults.end;
+    }
+
+    var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRe.test(startDate) || !dateRe.test(endDate)) {
+      _state = 'error';
+      _error = 'Invalid date format. Use YYYY-MM-DD.';
+      return Promise.reject(new Error(_error));
+    }
+
+    var s = parseDate(startDate);
+    var e = parseDate(endDate);
+    if (daysBetween(s, e) > MAX_SPAN_DAYS) {
+      _state = 'error';
+      _error = 'Date range exceeds maximum of ' + MAX_SPAN_DAYS + ' days.';
+      return Promise.reject(new Error(_error));
+    }
+
+    if (e < s) {
+      _state = 'error';
+      _error = 'End date must be on or after start date.';
+      return Promise.reject(new Error(_error));
+    }
+
+    _state = 'loading';
+    _error = null;
+
+    var url =
+      API_BASE +
+      '?start_date=' + encodeURIComponent(startDate) +
+      '&end_date=' + encodeURIComponent(endDate) +
+      '&api_key=' + encodeURIComponent(API_KEY);
+
+    return fetchWithTimeout(url, FETCH_TIMEOUT_MS)
+      .then(function (response) {
+        if (!response.ok) {
+          var errMsg = classifyError(null, response);
+          _state = 'error';
+          _error = errMsg;
+          throw new Error(errMsg);
+        }
+        return response.json();
+      })
+      .then(function (json) {
+        _data = parseResponse(json, startDate, endDate);
+        _dateRange = { start: startDate, end: endDate };
+        _state = 'loaded';
+        _error = null;
+        return _data;
+      })
+      .catch(function (err) {
+        if (_state !== 'error') {
+          _error = classifyError(err, null);
+          _state = 'error';
+        }
+        throw err;
+      });
+  }
+
+  return {
+    fetchNeoData: fetchNeoData,
+    getLoadingState: function () { return _state; },
+    getError: function () { return _error; },
+    getData: function () { return _data; },
+    getDateRange: function () { return { start: _dateRange.start, end: _dateRange.end }; },
+    getPositionsAtTime: getPositionsAtTime,
+    getSummaryStats: getSummaryStats
+  };
+})();
+</script>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-text">ACQUIRING SIGNAL...</div>
+</div>
+
+<!-- Error Banner -->
+<div id="error-banner">SIGNAL LOST &mdash; <span id="error-msg"></span></div>
+
+<!-- ========== DATE RANGE SELECTOR ========== -->
+<div id="date-range-bar">
+  <label>From</label>
+  <input type="date" id="date-start">
+  <label>To</label>
+  <input type="date" id="date-end">
+  <button id="date-fetch">SCAN</button>
+  <span id="date-range-msg"></span>
+</div>
+
+<!-- ========== ORBITAL VISUALIZATION ========== -->
+<div id="viz-container">
+  <canvas id="orbital-canvas"></canvas>
+
+  <div id="canvas-tooltip">
+    <div class="tt-name" id="tt-name"></div>
+    <div class="tt-row"><span>Diameter:</span><span id="tt-diameter"></span></div>
+    <div class="tt-row"><span>Miss Distance:</span><span id="tt-miss"></span></div>
+    <div class="tt-row"><span>Velocity:</span><span id="tt-velocity"></span></div>
+    <div class="tt-hazard" id="tt-hazard"></div>
+  </div>
+
+  <div id="controls-bar">
+    <div class="controls-group">
+      <button id="btn-play" title="Play / Pause">&#9654;</button>
+      <select id="speed-select" title="Playback speed">
+        <option value="1">1x</option>
+        <option value="5">5x</option>
+        <option value="10" selected>10x</option>
+        <option value="50">50x</option>
+      </select>
+    </div>
+    <input type="range" id="time-scrubber" min="0" max="1000" value="0">
+    <div id="timestamp-display">----/--/-- --:--:-- UTC</div>
+    <div class="controls-group">
+      <button id="btn-toggle-safe" class="active" title="Show/Hide safe asteroids">Safe</button>
+      <button id="btn-toggle-trails" class="active" title="Show/Hide trails">Trails</button>
+      <button id="btn-toggle-labels" title="Show/Hide labels">Labels</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DASHBOARD ========== -->
+<div id="dashboard">
+
+  <!-- Threat Overview Cards -->
+  <div class="section-title">Threat Overview</div>
+  <div id="threat-cards">
+    <div class="threat-card" id="card-total">
+      <div class="card-icon">&#9737;</div>
+      <div class="card-value" id="card-total-val">--</div>
+      <div class="card-label">Total Objects</div>
+    </div>
+    <div class="threat-card" id="card-hazardous">
+      <div class="card-icon">&#9888;</div>
+      <div class="card-value" id="card-hazard-val">--</div>
+      <div class="card-label">Potentially Hazardous</div>
+    </div>
+    <div class="threat-card" id="card-closest">
+      <div class="card-icon">&#10687;</div>
+      <div class="card-value" id="card-closest-val">--</div>
+      <div class="card-label">Closest Approach</div>
+      <div class="card-sub" id="card-closest-sub"></div>
+    </div>
+    <div class="threat-card" id="card-fastest">
+      <div class="card-icon">&#10148;</div>
+      <div class="card-value" id="card-fastest-val">--</div>
+      <div class="card-label">Fastest Object</div>
+      <div class="card-sub" id="card-fastest-sub"></div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div id="detail-panel">
+    <button id="detail-close">&times;</button>
+    <h3 id="detail-name">--</h3>
+    <div class="detail-grid">
+      <div class="detail-item"><label>Est. Diameter</label><span id="detail-diameter">--</span></div>
+      <div class="detail-item"><label>Miss Distance (km)</label><span id="detail-miss-km">--</span></div>
+      <div class="detail-item"><label>Miss Distance (mi)</label><span id="detail-miss-mi">--</span></div>
+      <div class="detail-item"><label>Miss Distance (LD)</label><span id="detail-miss-ld">--</span></div>
+      <div class="detail-item"><label>Relative Velocity</label><span id="detail-velocity">--</span></div>
+      <div class="detail-item"><label>Absolute Magnitude</label><span id="detail-mag">--</span></div>
+      <div class="detail-item"><label>Close Approach Date</label><span id="detail-date">--</span></div>
+      <div class="detail-item"><label>Hazard Assessment</label><span id="detail-hazard">--</span></div>
+    </div>
+    <a id="detail-jpl-link" href="#" target="_blank" rel="noopener">View on NASA JPL &#8599;</a>
+  </div>
+
+  <!-- Sortable Table -->
+  <div id="table-section">
+    <div class="section-title">Near-Earth Objects &mdash; 7-Day Window</div>
+    <div class="table-wrap">
+      <table id="neo-table">
+        <thead>
+          <tr>
+            <th data-key="name">Name <span class="sort-arrow"></span></th>
+            <th data-key="date">Date <span class="sort-arrow"></span></th>
+            <th data-key="miss_km">Miss Dist (km) <span class="sort-arrow"></span></th>
+            <th data-key="miss_ld">Miss Dist (LD) <span class="sort-arrow"></span></th>
+            <th data-key="velocity">Velocity (km/h) <span class="sort-arrow"></span></th>
+            <th data-key="diameter">Diameter (m) <span class="sort-arrow"></span></th>
+            <th data-key="hazardous">Hazardous <span class="sort-arrow"></span></th>
+          </tr>
+        </thead>
+        <tbody id="neo-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Size Comparison -->
+  <div id="size-section">
+    <div class="section-title">Size Comparison &mdash; Top 10 by Diameter</div>
+    <div id="size-bars"></div>
+  </div>
+
+  <!-- Timeline -->
+  <div id="timeline-section">
+    <div class="section-title">Close Approach Timeline</div>
+    <div id="timeline-chart-wrap">
+      <canvas id="timeline-chart"></canvas>
+    </div>
+  </div>
+
+</div><!-- /dashboard -->
+
+<script>
+// ==============================================================================
+// DATA ADAPTER — maps NeoDataLayer format to visualization format
+// ==============================================================================
+function adaptNeoData(rawData) {
+  return rawData.map(function(neo) {
+    return {
+      id: neo.id,
+      name: neo.name,
+      jpl_url: neo.nasa_jpl_url,
+      diameter_min: neo.estimated_diameter_min_m,
+      diameter_max: neo.estimated_diameter_max_m,
+      abs_magnitude: neo.absolute_magnitude,
+      is_hazardous: neo.is_potentially_hazardous,
+      miss_km: neo.miss_distance_km,
+      miss_ld: neo.miss_distance_lunar,
+      velocity_kmh: neo.relative_velocity_kmh,
+      approach_date: neo._approachMs
+        ? new Date(neo._approachMs).toISOString()
+        : neo.close_approach_date + 'T00:00:00Z',
+      orbital_position: neo.orbital_position,
+      _approachMs: neo._approachMs
+    };
+  });
+}
+
+// ========== HELPERS ==========
+function avgDiameter(a) { return (a.diameter_min + a.diameter_max) / 2; }
+
+// ==============================================================================
+// GLOBAL STATE
+// ==============================================================================
+let asteroids = [];
+let selectedId = null;
+let playing = false;
+let speed = 10;
+let showSafe = true;
+let showTrails = true;
+let showLabels = false;
+
+// Time window — set after data loads
+let WINDOW_START_MS = 0;
+let WINDOW_END_MS = 0;
+let WINDOW_MS = 1;
+let currentTime = 0;
+
+// Per-asteroid trail history: id -> [{x,y}]
+const trails = {};
+
+// Table sort state
+let sortKey = 'miss_km';
+let sortAsc = true;
+
+// ==============================================================================
+// CANVAS SETUP
+// ==============================================================================
+const canvas = document.getElementById('orbital-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, CX, CY;
+
+// Star field — 250 stars with viewport wrapping and twinkle phases (ported from 3-19)
+let stars = [];
+function generateStars(count) {
+  stars = [];
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: Math.random() * 2000,
+      y: Math.random() * 2000,
+      size: Math.random() * 1.5 + 0.5,
+      twinkle: Math.random() > 0.7,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+}
+generateStars(250);
+
+function resizeCanvas() {
+  const container = document.getElementById('viz-container');
+  const dpr = window.devicePixelRatio || 1;
+  W = container.clientWidth;
+  H = container.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  CX = W / 2;
+  CY = (H - 52) / 2; // offset up so controls bar doesn't cover center
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ==============================================================================
+// ORBIT MAPPING
+// ==============================================================================
+// Dynamic scale — computed after data loads
+let MAX_LD = 60;
+
+function computeOrbitRings() {
+  // Pick sensible ring distances based on actual data range
+  const rings = [
+    { ld: 1, label: "Moon's Orbit (1 LD)", moon: true },
+  ];
+  if (MAX_LD > 5)   rings.push({ ld: 5,   label: '5 LD' });
+  if (MAX_LD > 20)  rings.push({ ld: 20,  label: '20 LD' });
+  if (MAX_LD > 50)  rings.push({ ld: 50,  label: '50 LD' });
+  if (MAX_LD > 100) rings.push({ ld: 100, label: '100 LD' });
+  if (MAX_LD > 150) rings.push({ ld: 200, label: '200 LD' });
+  return rings;
+}
+
+let ORBIT_RINGS = computeOrbitRings();
+
+function maxOrbitRadius() {
+  return Math.min(CX, CY) * 0.88;
+}
+
+function ldToPixel(ld) {
+  return (Math.log(ld + 1) / Math.log(MAX_LD + 1)) * maxOrbitRadius();
+}
+
+function dateToAngle(dateStr) {
+  const ms = new Date(dateStr).getTime() - WINDOW_START_MS;
+  return (ms / WINDOW_MS) * Math.PI * 2;
+}
+
+// Velocity-based angular offset — breaks up clusters of same-day asteroids
+// Each asteroid's velocity gives it a unique approach vector
+function velocityAngleOffset(a) {
+  // Use velocity + miss distance as a pseudo-random but deterministic spread
+  const v = a.velocity_kmh || 0;
+  const d = a.miss_ld || 0;
+  // Hash-like spread: sin of combined values gives -1..1, scale to ±0.4 radians
+  return Math.sin(v * 0.0001 + d * 7.3) * 0.4;
+}
+
+function asteroidDiameterToPx(a) {
+  const d = avgDiameter(a);
+  return Math.max(3, Math.min(20, 3 + Math.log(d + 1) * 2.5));
+}
+
+// ==============================================================================
+// ASTEROID POSITION OVER TIME
+// ==============================================================================
+// INTEGRATION: Replace with NeoDataLayer.getPositionsAtTime(timestamp)
+
+function getAnimProgress(a, t) {
+  // Returns 0..1..0: 0 = far away, 1 = at closest approach, back to 0
+  const approachMs = new Date(a.approach_date).getTime();
+  const halfWindow = WINDOW_MS / 2;
+  const normalized = (t - approachMs) / halfWindow;
+  return Math.max(0, 1 - Math.abs(normalized));
+}
+
+function getAsteroidPos(a, t) {
+  const baseAngle = dateToAngle(a.approach_date) + velocityAngleOffset(a);
+  const approachMs = new Date(a.approach_date).getTime();
+
+  // Time delta relative to approach — drives radial movement like 3-19
+  const timeDelta = (t - approachMs) / WINDOW_MS;
+
+  // Parabolic approach: closest at timeDelta=0, farther before/after
+  const distanceFactor = 1 + Math.abs(timeDelta) * 2;
+  const baseLD = a.miss_ld;
+  const currentLD = baseLD * Math.min(distanceFactor, 1.5);
+  const r = ldToPixel(currentLD);
+
+  // Angular movement over time — spreads asteroids as they pass through
+  const currentAngle = baseAngle + timeDelta * 0.3;
+
+  const progress = Math.max(0, 1 - Math.abs(timeDelta) * 4);
+
+  return {
+    x: CX + Math.cos(currentAngle) * r,
+    y: CY + Math.sin(currentAngle) * r,
+    r: asteroidDiameterToPx(a),
+    ld: currentLD,
+    progress: progress,
+  };
+}
+
+// ==============================================================================
+// DRAWING FUNCTIONS
+// ==============================================================================
+let moonOrbitWarning = 0;
+
+function drawStars(t) {
+  for (const s of stars) {
+    let opacity = 0.6;
+    if (s.twinkle) {
+      opacity = 0.3 + Math.sin(t / 500 + s.phase) * 0.35 + 0.35;
+    }
+    ctx.fillStyle = `rgba(255, 255, 255, ${opacity.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(s.x % W, s.y % H, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawEarth() {
+  const earthRadius = 20;
+
+  // Outer atmospheric glow
+  const glowGrad = ctx.createRadialGradient(CX, CY, earthRadius * 0.5, CX, CY, earthRadius * 2);
+  glowGrad.addColorStop(0, 'rgba(100, 200, 255, 0.3)');
+  glowGrad.addColorStop(1, 'rgba(100, 200, 255, 0)');
+  ctx.fillStyle = glowGrad;
+  ctx.beginPath();
+  ctx.arc(CX, CY, earthRadius * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Earth body — 3-stop gradient for depth
+  const bodyGrad = ctx.createRadialGradient(CX - 5, CY - 5, 0, CX, CY, earthRadius);
+  bodyGrad.addColorStop(0, '#4da6ff');
+  bodyGrad.addColorStop(0.5, '#2d7dd2');
+  bodyGrad.addColorStop(1, '#1a5490');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.arc(CX, CY, earthRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Specular highlight
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.beginPath();
+  ctx.arc(CX - 5, CY - 5, earthRadius * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('EARTH', CX, CY + earthRadius + 15);
+}
+
+function drawOrbitRings() {
+  for (const ring of ORBIT_RINGS) {
+    const r = ldToPixel(ring.ld);
+    ctx.beginPath();
+    ctx.arc(CX, CY, r, 0, Math.PI * 2);
+    if (ring.moon) {
+      // Moon's orbit: solid, brighter, distinct
+      ctx.strokeStyle = 'rgba(100, 200, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = 'rgba(100, 150, 200, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Distance label — Courier New for mission control aesthetic
+    ctx.fillStyle = ring.moon ? 'rgba(100, 200, 255, 0.8)' : 'rgba(150, 180, 200, 0.5)';
+    ctx.font = '10px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillText(ring.label, CX + r + 5, CY - 5);
+  }
+}
+
+function drawAsteroids(t) {
+  const visible = asteroids.filter(a => showSafe || a.is_hazardous);
+
+  // ---- Draw all trails first (behind asteroids) ----
+  if (showTrails) {
+    for (const a of visible) {
+      const pos = getAsteroidPos(a, currentTime);
+      if (!trails[a.id]) trails[a.id] = [];
+      trails[a.id].push({ x: pos.x, y: pos.y });
+      // Keep last 15 positions (more history than 4-19's 10)
+      while (trails[a.id].length > 15) trails[a.id].shift();
+
+      const trail = trails[a.id];
+      if (trail.length < 2) continue;
+
+      const color = a.is_hazardous ? '255, 107, 53' : '0, 212, 255';
+      for (let i = 1; i < trail.length; i++) {
+        const opacity = (i / trail.length) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+        ctx.lineTo(trail[i].x, trail[i].y);
+        ctx.strokeStyle = `rgba(${color}, ${opacity.toFixed(2)})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  for (const a of visible) {
+    const pos = getAsteroidPos(a, currentTime);
+
+    // ---- Closest approach detection ----
+    const atClosest = pos.progress > 0.95;
+
+    // Moon orbit warning for hazardous asteroids inside 1 LD
+    if (a.is_hazardous && pos.ld <= 1.05) {
+      moonOrbitWarning = Math.max(moonOrbitWarning, 8);
+    }
+
+    // ---- Selection highlight ring ----
+    if (selectedId === a.id) {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, pos.r + 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#00d4ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // ---- Hazardous glow ----
+    if (a.is_hazardous) {
+      const pulse = Math.sin(t / 200) * 0.3 + 0.7;
+      const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, pos.r * 2.5);
+      glow.addColorStop(0, `rgba(255, 107, 53, ${(pulse * 0.5).toFixed(2)})`);
+      glow.addColorStop(1, 'rgba(255, 107, 53, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, pos.r * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ---- Flash at closest approach ----
+    if (atClosest) {
+      const flash = Math.sin(t / 100) * 0.5 + 0.5;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, pos.r * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${(flash * 0.3).toFixed(2)})`;
+      ctx.fill();
+
+      // Warning flash on Moon orbit if hazardous + inside 1 LD
+      if (a.miss_ld < 1 && a.is_hazardous) {
+        const moonR = ldToPixel(1);
+        ctx.beginPath();
+        ctx.arc(CX, CY, moonR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255, 68, 68, ${flash.toFixed(2)})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    // ---- Asteroid body — radial gradient for depth ----
+    const bodyGrad = ctx.createRadialGradient(
+      pos.x - pos.r * 0.2, pos.y - pos.r * 0.2, 0,
+      pos.x, pos.y, pos.r
+    );
+    if (a.is_hazardous) {
+      bodyGrad.addColorStop(0, '#ffaa77');
+      bodyGrad.addColorStop(1, '#cc4422');
+    } else {
+      bodyGrad.addColorStop(0, '#66ddff');
+      bodyGrad.addColorStop(1, '#0088aa');
+    }
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, pos.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ---- Name label — Courier New, conditional visibility ----
+    if (showLabels && (a.is_hazardous || selectedId === a.id)) {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '9px Courier New';
+      ctx.textAlign = 'center';
+      const shortName = a.name.replace(/[()]/g, '').substring(0, 15);
+      ctx.fillText(shortName, pos.x, pos.y - pos.r - 5);
+    }
+  }
+
+  // ---- Moon orbit warning flash ----
+  if (moonOrbitWarning > 0) {
+    const wr = ldToPixel(1);
+    ctx.beginPath();
+    ctx.arc(CX, CY, wr, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,60,60,${(moonOrbitWarning / 8 * 0.6).toFixed(2)})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    moonOrbitWarning -= 0.15;
+  }
+}
+
+// ==============================================================================
+// MAIN ANIMATION LOOP — 60fps via requestAnimationFrame
+// ==============================================================================
+function drawFrame(timestamp) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Dark space background
+  ctx.fillStyle = '#0a0e17';
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars(timestamp);
+  drawOrbitRings();
+  drawEarth();
+  drawAsteroids(timestamp);
+
+  // Advance simulation time when playing
+  if (playing) {
+    const dt = (1000 / 60) * speed * 600;
+    currentTime += dt;
+    if (currentTime > WINDOW_END_MS) {
+      currentTime = WINDOW_START_MS;
+      // Clear trails on wrap-around
+      for (const k in trails) trails[k] = [];
+    }
+    updateScrubber();
+  }
+
+  updateTimestampDisplay();
+  requestAnimationFrame(drawFrame);
+}
+
+// ==============================================================================
+// PLAYBACK CONTROLS
+// ==============================================================================
+const btnPlay = document.getElementById('btn-play');
+const speedSelect = document.getElementById('speed-select');
+const scrubber = document.getElementById('time-scrubber');
+const tsDisplay = document.getElementById('timestamp-display');
+
+btnPlay.addEventListener('click', () => {
+  playing = !playing;
+  btnPlay.textContent = playing ? '\u23F8' : '\u25B6';
+});
+
+speedSelect.addEventListener('change', e => {
+  speed = parseInt(e.target.value, 10);
+});
+
+scrubber.addEventListener('input', e => {
+  const frac = parseInt(e.target.value, 10) / 1000;
+  currentTime = WINDOW_START_MS + frac * WINDOW_MS;
+  // Clear trails on manual scrub for cleanliness
+  for (const k in trails) trails[k] = [];
+});
+
+function updateScrubber() {
+  const frac = (currentTime - WINDOW_START_MS) / WINDOW_MS;
+  scrubber.value = Math.round(frac * 1000);
+}
+
+function updateTimestampDisplay() {
+  if (WINDOW_START_MS === 0 && WINDOW_END_MS === 0) {
+    tsDisplay.textContent = '----/--/-- --:--:-- UTC';
+    return;
+  }
+  const d = new Date(currentTime);
+  tsDisplay.textContent = d.toISOString().replace('T', ' ').replace(/\.\d+Z/, ' UTC');
+}
+
+// Toggle buttons
+function wireToggle(btnId, getter, setter) {
+  const btn = document.getElementById(btnId);
+  btn.addEventListener('click', () => {
+    setter(!getter());
+    btn.classList.toggle('active', getter());
+  });
+}
+wireToggle('btn-toggle-safe', () => showSafe, v => { showSafe = v; });
+wireToggle('btn-toggle-trails', () => showTrails, v => {
+  showTrails = v;
+  if (!v) for (const k in trails) trails[k] = [];
+});
+wireToggle('btn-toggle-labels', () => showLabels, v => { showLabels = v; });
+
+// ==============================================================================
+// CANVAS HOVER & CLICK (hit-testing)
+// ==============================================================================
+const tooltip = document.getElementById('canvas-tooltip');
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  let hit = null;
+  const visible = asteroids.filter(a => showSafe || a.is_hazardous);
+  for (const a of visible) {
+    const pos = getAsteroidPos(a, currentTime);
+    const dx = mx - pos.x, dy = my - pos.y;
+    if (dx * dx + dy * dy < (pos.r + 6) * (pos.r + 6)) {
+      hit = { asteroid: a, pos };
+      break;
+    }
+  }
+
+  if (hit) {
+    const a = hit.asteroid;
+    document.getElementById('tt-name').textContent = a.name;
+    document.getElementById('tt-diameter').textContent = avgDiameter(a).toFixed(0) + ' m';
+    document.getElementById('tt-miss').textContent =
+      Number(a.miss_km).toLocaleString() + ' km (' + a.miss_ld.toFixed(2) + ' LD)';
+    document.getElementById('tt-velocity').textContent =
+      Number(a.velocity_kmh).toLocaleString() + ' km/h';
+    const hazEl = document.getElementById('tt-hazard');
+    hazEl.textContent = a.is_hazardous ? 'POTENTIALLY HAZARDOUS' : 'NOT HAZARDOUS';
+    hazEl.style.color = a.is_hazardous ? '#ff6b35' : '#00d4ff';
+    hazEl.style.background = a.is_hazardous ? 'rgba(255,107,53,0.1)' : 'rgba(0,212,255,0.08)';
+
+    let tx = mx + 16, ty = my - 10;
+    if (tx + 260 > W) tx = mx - 270;
+    if (tx < 0) tx = 4;
+    if (ty + 120 > H) ty = my - 120;
+    if (ty < 0) ty = 4;
+    tooltip.style.left = tx + 'px';
+    tooltip.style.top = ty + 'px';
+    tooltip.classList.add('visible');
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.classList.remove('visible');
+    canvas.style.cursor = 'default';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  tooltip.classList.remove('visible');
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const visible = asteroids.filter(a => showSafe || a.is_hazardous);
+  for (const a of visible) {
+    const pos = getAsteroidPos(a, currentTime);
+    const dx = mx - pos.x, dy = my - pos.y;
+    if (dx * dx + dy * dy < (pos.r + 6) * (pos.r + 6)) {
+      selectAsteroid(a.id);
+      return;
+    }
+  }
+  deselectAsteroid();
+});
+
+// ==============================================================================
+// ASTEROID SELECTION / DETAIL PANEL
+// ==============================================================================
+function selectAsteroid(id) {
+  selectedId = id;
+  const a = asteroids.find(x => x.id === id);
+  if (!a) return;
+
+  document.getElementById('detail-name').textContent = a.name;
+  document.getElementById('detail-diameter').textContent =
+    a.diameter_min.toFixed(0) + ' - ' + a.diameter_max.toFixed(0) + ' m';
+  document.getElementById('detail-miss-km').textContent =
+    Number(a.miss_km).toLocaleString() + ' km';
+  document.getElementById('detail-miss-mi').textContent =
+    (a.miss_km * 0.621371).toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' mi';
+  document.getElementById('detail-miss-ld').textContent = a.miss_ld.toFixed(2) + ' LD';
+  document.getElementById('detail-velocity').textContent =
+    Number(a.velocity_kmh).toLocaleString() + ' km/h';
+  document.getElementById('detail-mag').textContent = a.abs_magnitude.toFixed(1) + ' H';
+  document.getElementById('detail-date').textContent =
+    new Date(a.approach_date).toUTCString();
+  const hazSpan = document.getElementById('detail-hazard');
+  hazSpan.textContent = a.is_hazardous ? 'POTENTIALLY HAZARDOUS' : 'Not Hazardous';
+  hazSpan.style.color = a.is_hazardous ? '#ff6b35' : '#00d4ff';
+  document.getElementById('detail-jpl-link').href = a.jpl_url || '#';
+  document.getElementById('detail-panel').classList.add('open');
+
+  // Highlight matching table row
+  document.querySelectorAll('#neo-tbody tr').forEach(tr => {
+    tr.classList.toggle('selected-row', tr.dataset.id === id);
+  });
+}
+
+function deselectAsteroid() {
+  selectedId = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  document.querySelectorAll('#neo-tbody tr.selected-row').forEach(tr =>
+    tr.classList.remove('selected-row')
+  );
+}
+
+document.getElementById('detail-close').addEventListener('click', deselectAsteroid);
+
+// ==============================================================================
+// THREAT OVERVIEW CARDS
+// ==============================================================================
+function updateCards() {
+  const stats = NeoDataLayer.getSummaryStats();
+
+  document.getElementById('card-total-val').textContent = stats.totalCount;
+
+  document.getElementById('card-hazard-val').textContent = stats.hazardousCount;
+  document.getElementById('card-hazardous').classList.toggle('glow-hazard', stats.hazardousCount > 0);
+
+  if (stats.closestApproach) {
+    document.getElementById('card-closest-val').textContent = stats.closestApproach.distance_lunar.toFixed(2) + ' LD';
+    document.getElementById('card-closest-sub').textContent = stats.closestApproach.name;
+  }
+
+  if (stats.fastestObject) {
+    document.getElementById('card-fastest-val').textContent =
+      Number(stats.fastestObject.velocity_kmh).toLocaleString() + ' km/h';
+    document.getElementById('card-fastest-sub').textContent = stats.fastestObject.name;
+  }
+}
+
+// ==============================================================================
+// SORTABLE TABLE
+// ==============================================================================
+function renderTable() {
+  if (asteroids.length === 0) {
+    document.getElementById('neo-tbody').innerHTML =
+      '<tr><td colspan="7" class="empty-state">NO OBJECTS DETECTED</td></tr>';
+    return;
+  }
+  const sorted = [...asteroids].sort((a, b) => {
+    let va, vb;
+    switch (sortKey) {
+      case 'name':      va = a.name; vb = b.name; break;
+      case 'date':      va = new Date(a.approach_date).getTime();
+                         vb = new Date(b.approach_date).getTime(); break;
+      case 'miss_km':   va = a.miss_km;      vb = b.miss_km; break;
+      case 'miss_ld':   va = a.miss_ld;      vb = b.miss_ld; break;
+      case 'velocity':  va = a.velocity_kmh; vb = b.velocity_kmh; break;
+      case 'diameter':  va = avgDiameter(a); vb = avgDiameter(b); break;
+      case 'hazardous': va = a.is_hazardous ? 1 : 0;
+                         vb = b.is_hazardous ? 1 : 0; break;
+      default:          va = a.miss_km; vb = b.miss_km;
+    }
+    if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  const tbody = document.getElementById('neo-tbody');
+  tbody.innerHTML = sorted.map(a => {
+    const rowClass =
+      (a.is_hazardous ? ' hazardous-row' : '') +
+      (selectedId === a.id ? ' selected-row' : '');
+    const d = new Date(a.approach_date);
+    const dateStr = d.toISOString().slice(0, 10) + ' ' + d.toISOString().slice(11, 16);
+    return `<tr data-id="${a.id}" class="${rowClass}">
+      <td style="font-family:var(--font-sans);font-weight:600">${a.name}</td>
+      <td>${dateStr}</td>
+      <td>${Number(a.miss_km).toLocaleString()}</td>
+      <td>${a.miss_ld.toFixed(2)}</td>
+      <td>${Number(a.velocity_kmh).toLocaleString()}</td>
+      <td>${avgDiameter(a).toFixed(0)}</td>
+      <td>${a.is_hazardous
+        ? '<span class="badge badge-hazard">YES</span>'
+        : '<span class="badge badge-safe">NO</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  // Wire row clicks
+  tbody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      selectAsteroid(tr.dataset.id);
+      document.getElementById('viz-container').scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  // Update sort arrows in headers
+  document.querySelectorAll('#neo-table th').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (th.dataset.key === sortKey) {
+      arrow.textContent = sortAsc ? ' \u25B2' : ' \u25BC';
+      th.style.color = '#00d4ff';
+    } else {
+      arrow.textContent = '';
+      th.style.color = '';
+    }
+  });
+}
+
+// Column header click for sorting
+document.querySelectorAll('#neo-table th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if (sortKey === key) { sortAsc = !sortAsc; }
+    else { sortKey = key; sortAsc = true; }
+    renderTable();
+  });
+});
+
+// ==============================================================================
+// SIZE COMPARISON BARS
+// ==============================================================================
+function renderSizeBars() {
+  const container = document.getElementById('size-bars');
+  if (asteroids.length === 0) {
+    showEmpty(container);
+    return;
+  }
+  const top10 = [...asteroids]
+    .sort((a, b) => avgDiameter(b) - avgDiameter(a))
+    .slice(0, 10);
+  const maxDiam = avgDiameter(top10[0]) || 1;
+
+  const refs = [
+    { label: 'Car (~4m)',               m: 4 },
+    { label: 'House (~10m)',            m: 10 },
+    { label: 'Statue of Liberty (~93m)',m: 93 },
+    { label: 'Football Field (~109m)',  m: 109 },
+  ];
+
+  // Ensure reference lines fit visually
+  const scaleDiam = Math.max(maxDiam, 120);
+
+  let html = '<div style="position:relative;padding-top:24px;margin-bottom:8px;">';
+  for (const ref of refs) {
+    const pct = (ref.m / scaleDiam) * 80;
+    if (pct < 95) {
+      html += `<div class="ref-line" style="left:calc(172px + ${pct}%)">
+        <div class="ref-line-label">${ref.label}</div>
+      </div>`;
+    }
+  }
+  html += '</div>';
+
+  for (const a of top10) {
+    const d = avgDiameter(a);
+    const pct = (d / scaleDiam) * 80;
+    const color = a.is_hazardous ? '#ff6b35' : '#00d4ff';
+    html += `<div class="size-bar-row">
+      <div class="size-bar-label">${a.name}</div>
+      <div class="size-bar-track">
+        <div class="size-bar-fill" style="width:${pct}%;background:${color};">
+          <span class="size-bar-value">${d.toFixed(0)} m</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// ==============================================================================
+// CLOSE APPROACH TIMELINE (Chart.js scatter/bubble)
+// ==============================================================================
+let timelineChart = null;
+
+function renderTimeline() {
+  const chartCanvas = document.getElementById('timeline-chart');
+  if (timelineChart) timelineChart.destroy();
+
+  const data = asteroids.map(a => ({
+    x: new Date(a.approach_date).getTime(),
+    y: a.miss_ld,
+    r: Math.max(4, Math.min(18, 3 + Math.log(avgDiameter(a) + 1) * 2)),
+    label: a.name,
+    hazardous: a.is_hazardous,
+    id: a.id,
+  }));
+
+  const hazardousData = data.filter(d => d.hazardous);
+  const safeData = data.filter(d => !d.hazardous);
+
+  timelineChart = new Chart(chartCanvas, {
+    type: 'bubble',
+    data: {
+      datasets: [
+        {
+          label: 'Hazardous',
+          data: hazardousData,
+          backgroundColor: 'rgba(255,107,53,0.6)',
+          borderColor: '#ff6b35',
+          borderWidth: 1,
+          hoverBackgroundColor: 'rgba(255,107,53,0.9)',
+        },
+        {
+          label: 'Safe',
+          data: safeData,
+          backgroundColor: 'rgba(0,212,255,0.5)',
+          borderColor: '#00d4ff',
+          borderWidth: 1,
+          hoverBackgroundColor: 'rgba(0,212,255,0.85)',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'linear',
+          min: WINDOW_START_MS,
+          max: WINDOW_END_MS,
+          ticks: {
+            callback: v => new Date(v).toISOString().slice(5, 10),
+            color: '#94a3b8',
+            font: { family: "'Courier New', monospace", size: 11 },
+            maxTicksLimit: 8,
+          },
+          grid: { color: 'rgba(30,41,59,0.6)' },
+          title: { display: true, text: 'Date', color: '#94a3b8' },
+        },
+        y: {
+          reverse: true,
+          min: 0,
+          ticks: {
+            color: '#94a3b8',
+            font: { family: "'Courier New', monospace", size: 11 },
+            callback: v => v.toFixed(0) + ' LD',
+          },
+          grid: { color: 'rgba(30,41,59,0.6)' },
+          title: {
+            display: true,
+            text: 'Miss Distance (LD) \u2014 closer is higher',
+            color: '#94a3b8',
+          },
+        },
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#e2e8f0', font: { family: 'system-ui, sans-serif' } },
+        },
+        tooltip: {
+          callbacks: {
+            label: tooltipCtx => {
+              const d = tooltipCtx.raw;
+              return d.label + ': ' + d.y.toFixed(2) + ' LD';
+            },
+          },
+          backgroundColor: '#111827',
+          borderColor: '#00d4ff',
+          borderWidth: 1,
+          titleColor: '#e2e8f0',
+          bodyColor: '#e2e8f0',
+          bodyFont: { family: "'Courier New', monospace" },
+        },
+      },
+      onClick: (evt, elements) => {
+        if (elements.length > 0) {
+          const el = elements[0];
+          const ds = timelineChart.data.datasets[el.datasetIndex];
+          const pt = ds.data[el.index];
+          selectAsteroid(pt.id);
+          document.getElementById('viz-container').scrollIntoView({ behavior: 'smooth' });
+        }
+      },
+      onHover: (evt, elements) => {
+        evt.chart.canvas.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+        // Sync: hovering a timeline point highlights asteroid in orbital view
+        if (elements.length > 0) {
+          const el = elements[0];
+          const ds = timelineChart.data.datasets[el.datasetIndex];
+          const pt = ds.data[el.index];
+          selectedId = pt.id;
+        }
+      },
+    },
+  });
+}
+
+// ==============================================================================
+// ERROR / EMPTY HELPERS
+// ==============================================================================
+function showError(msg) {
+  // INTEGRATION: NeoDataLayer.getError() to show error states
+  const banner = document.getElementById('error-banner');
+  document.getElementById('error-msg').textContent = msg || 'Connection failed';
+  banner.style.display = 'block';
+}
+
+function showEmpty(container) {
+  container.innerHTML = '<div class="empty-state">NO OBJECTS DETECTED</div>';
+}
+
+// ==============================================================================
+// INITIALIZATION — Live API Integration
+// ==============================================================================
+function populateDashboard() {
+  updateCards();
+  renderTable();
+  renderSizeBars();
+  renderTimeline();
+}
+
+function loadData(startDate, endDate) {
+  // Show loading state
+  document.getElementById('loading-overlay').classList.remove('hidden');
+  document.getElementById('error-banner').style.display = 'none';
+  playing = false;
+  btnPlay.textContent = '\u25B6';
+
+  // Clear old state
+  asteroids = [];
+  selectedId = null;
+  for (const k in trails) delete trails[k];
+
+  NeoDataLayer.fetchNeoData(startDate, endDate)
+    .then(function(rawData) {
+      asteroids = adaptNeoData(rawData);
+      var dateRange = NeoDataLayer.getDateRange();
+      var startParts = dateRange.start.split('-');
+      var endParts = dateRange.end.split('-');
+      WINDOW_START_MS = new Date(Number(startParts[0]), Number(startParts[1]) - 1, Number(startParts[2])).getTime();
+      WINDOW_END_MS = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2])).getTime() + 86400000;
+      WINDOW_MS = WINDOW_END_MS - WINDOW_START_MS;
+      currentTime = WINDOW_START_MS;
+
+      // Compute dynamic scale from actual data
+      MAX_LD = 10; // minimum so close objects still have room
+      for (const a of asteroids) {
+        if (a.miss_ld > MAX_LD) MAX_LD = a.miss_ld;
+      }
+      MAX_LD = MAX_LD * 1.15; // 15% padding so nothing sits on the edge
+      ORBIT_RINGS = computeOrbitRings();
+
+      // Sync date inputs with loaded range
+      document.getElementById('date-start').value = dateRange.start;
+      document.getElementById('date-end').value = dateRange.end;
+
+      document.getElementById('loading-overlay').classList.add('hidden');
+
+      if (asteroids.length === 0) {
+        showEmpty(document.getElementById('neo-tbody'));
+        showEmpty(document.getElementById('size-bars'));
+      }
+
+      document.getElementById('detail-panel').classList.remove('open');
+      populateDashboard();
+    })
+    .catch(function(err) {
+      console.error('NeoDataLayer fetch failed:', err);
+      document.getElementById('loading-overlay').classList.add('hidden');
+      showError(NeoDataLayer.getError() || err.message);
+    });
+}
+
+// ==============================================================================
+// DATE RANGE SELECTOR
+// ==============================================================================
+const dateStartInput = document.getElementById('date-start');
+const dateEndInput = document.getElementById('date-end');
+const dateFetchBtn = document.getElementById('date-fetch');
+const dateMsg = document.getElementById('date-range-msg');
+
+// Set defaults: today + 6 days
+(function setDefaultDates() {
+  const today = new Date();
+  const end = new Date(today);
+  end.setDate(end.getDate() + 6);
+  const fmt = d => d.toISOString().slice(0, 10);
+  dateStartInput.value = fmt(today);
+  dateEndInput.value = fmt(end);
+})();
+
+dateFetchBtn.addEventListener('click', function() {
+  dateMsg.textContent = '';
+  const s = dateStartInput.value;
+  const e = dateEndInput.value;
+  if (!s || !e) { dateMsg.textContent = 'Select both dates'; return; }
+  if (e < s) { dateMsg.textContent = 'End must be after start'; return; }
+
+  const diffDays = Math.round((new Date(e) - new Date(s)) / 86400000);
+  if (diffDays > 7) {
+    dateMsg.textContent = 'Max 7 days (NASA API limit)';
+    return;
+  }
+
+  loadData(s, e);
+});
+
+// Also allow Enter key on date inputs
+dateStartInput.addEventListener('keydown', e => { if (e.key === 'Enter') dateFetchBtn.click(); });
+dateEndInput.addEventListener('keydown', e => { if (e.key === 'Enter') dateFetchBtn.click(); });
+
+function init() {
+  requestAnimationFrame(drawFrame);
+  loadData();
+}
+
+init();
+</script>
+</body>
+</html>
