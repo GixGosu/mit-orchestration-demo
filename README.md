@@ -90,6 +90,8 @@ The orchestration in this demo originally relied on OpenClaw, which was killed b
 - You own the orchestration layer — no vendor dependency beyond the model API
 - Spawns `claude` CLI as a subprocess, so you get full Claude Code tool access (bash, file I/O, etc.)
 
+This approach also cuts token usage substantially — OpenClaw's orchestration layer burned tokens on coordination overhead between agents, while ChatBridge delegates that to simple subprocess calls and workspace files. The AI spends tokens on actual work, not on managing itself.
+
 If the talk about platform risk resonated, ChatBridge is how we practice what we preach.
 
 ## License
